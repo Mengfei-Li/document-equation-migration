@@ -1,4 +1,4 @@
-# document-equation-migration
+# Document Equation Migration
 
 Research-grade tools for converting MathType OLE-embedded equations in Word `.docx` files into MathML, OMML, and editable Word equations.
 
