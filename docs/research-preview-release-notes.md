@@ -2,6 +2,8 @@
 
 This repository is a research-preview release, not a production-ready or lossless converter release.
 
+For a consolidated explanation of the current MathType claim boundary, see [MathType evidence pack](mathtype-evidence.md).
+
 ## Release Positioning
 
 This release should be understood as follows:
@@ -29,6 +31,7 @@ The current evidence supports the following limited claims:
 - the guarded layout-preservation option is reachable from the execution surface
 - wrapper resume/chunk behavior exists for long MathType runs
 - external MathType live-conversion prerequisites are documented
+- the current evidence boundary is summarized in a dedicated public evidence-pack document
 
 The current evidence does not support these claims:
 
@@ -75,3 +78,9 @@ MathType live conversion requires external tools:
 - optional visual comparison dependencies for PDF visual gates
 
 The public release does not vendor JDK/JRE archives, Office files, complete third-party repositories, generated DOCX/PDF outputs, or private sample documents.
+
+Related public documentation:
+
+- [MathType evidence pack](mathtype-evidence.md)
+- [Limitations](limitations.md)
+- [Dependencies](dependencies.md)

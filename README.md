@@ -243,6 +243,8 @@ For the research-preview release, MathType conversion results should be interpre
 
 Current real MathType evidence supports the guarded layout-preservation path as a manual-review candidate, not as a pixel-identical or lossless converter. The guarded layout option remains opt-in because its current factor is sample-derived and requires broader validation.
 
+For a structured statement of the current claim boundary, evidence classes, and manual-review gate, see [MathType evidence pack](docs/mathtype-evidence.md).
+
 Before using a `review-gated` output in production, review the generated PDF, inspect changed pages, spot-check high-risk formulas, and keep the source document available for comparison.
 
 Run the current test gate:
@@ -293,6 +295,7 @@ python .\compare_pdf_visual.py .\original.pdf .\converted.pdf .\out\visual_compa
 - [Architecture](docs/architecture.md)
 - [Dependencies](docs/dependencies.md)
 - [Limitations](docs/limitations.md)
+- [MathType evidence pack](docs/mathtype-evidence.md)
 - [Research-preview release notes](docs/research-preview-release-notes.md)
 
 ## License

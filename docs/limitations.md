@@ -18,6 +18,8 @@ Editable OMML output and print-identical layout are separate goals. A document c
 
 In this research-preview release, `review-gated` MathType output is not an automated deliverable claim. It means Word export succeeded and traceable visual evidence exists, but a human reviewer must inspect layout drift and formula risk before production use.
 
+For the current release-facing evidence boundary and manual-review interpretation, see [MathType evidence pack](mathtype-evidence.md).
+
 The guarded MathType layout-preservation option is opt-in. It is based on current sample evidence and should not be treated as a universal correction for all documents.
 
 Current MathType output is not lossless, pixel-identical, or production-ready without review. The evidence supports a research-preview manual-review workflow: complete conversion and replacement counts, Word export, page-count checks, unmatched-page checks, visual changed-ratio metrics, and human inspection.
