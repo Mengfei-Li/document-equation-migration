@@ -14,5 +14,8 @@ The fixtures model DOCX container fragments rather than complete user documents:
   - Negative/blocked control case for an object without an `Equation Native` stream.
 - `non_mathtype_ole/`
   - Negative control case for a non-MathType OLE object.
+- `live_control/`
+  - Positive MathType OLE case with a real binary MTEF OLE payload from an MIT-licensed upstream test fixture.
+  - `word/embeddings/oleObject1.bin.b64` is base64-encoded text and is decoded only into temporary test files.
 
-These fixtures are detector/routing fixtures only. They are not live-conversion proof, not redistributable evidence for real MathType formulas, and not intended to represent production MathType output.
+The marker fixtures are detector/routing fixtures only. `live_control/` provides source material for live-conversion tooling tests when the documented external prerequisites are available, but the default public test suite only verifies fixture integrity, source detection, and temporary DOCX packaging. These fixtures are not intended to represent production MathType output or visual parity.

@@ -31,7 +31,8 @@ This release does **not** claim lossless conversion, pixel-identical layout, or 
 | Execution surface | The detector-first execution surface can route MathType work and drive the existing conversion path when external tools are explicitly allowed. | MathType is not an isolated script only; it is wired into the shared execution model. |
 | Long-run behavior | Resume and chunk controls exist for long MathType runs. | Larger documents can be processed with a more stable recovery path. |
 | Public detector fixtures | Public marker fixtures cover detection, routing, and dry-run evidence. | Public fixtures prove source discovery behavior, not full live conversion. |
-| Live-conversion control | A separate local research-control fixture with real binary MTEF OLE payload proves that the external toolchain can still complete end-to-end live conversion. | The live chain works locally, but that control fixture is not automatically approved for public redistribution. |
+| Public live-control fixture | A minimal attributed base64-encoded MTEF5 OLE payload is included for integrity, detection, temporary DOCX packaging, and optional external-tool conversion tests. | The public tree now has source-controlled material for live-conversion testing, but default CI still does not claim full conversion or visual parity. |
+| Local live-conversion control | A separate local research-control run proved that the external toolchain can complete end-to-end live conversion on the same payload class. | The live chain works locally, while public release claims remain manual-review gated. |
 
 ## What Users Can Claim Today
 
@@ -65,6 +66,7 @@ Publicly inspectable evidence lives in this repository:
 - source code for the MathType route and shared execution surface
 - detector and executor tests
 - synthetic marker fixtures under `tests/fixtures/`
+- an attributed `live_control` MathType fixture stored as base64 text under `tests/fixtures/mathtype_ole/`
 - outward-facing documentation such as:
   - [Research-preview release notes](research-preview-release-notes.md)
   - [Dependencies](dependencies.md)
@@ -96,7 +98,7 @@ That class exists because:
 - marker fixtures are good for detector and routing tests
 - marker fixtures do not prove that a real binary MTEF payload will convert end to end
 
-Public live-convertible fixtures remain a future task with explicit source, hash, license, attribution, and artifact-hygiene requirements.
+The public `live_control` fixture now covers the minimal attributed source-material side of that requirement. Full live conversion still requires the documented external tools and should be interpreted conservatively.
 
 ## Manual-Review Gate
 
@@ -140,7 +142,7 @@ Start with the commands in the [README](../README.md), then use the release note
 The next evidence upgrade needs one or more of the following:
 
 - broader independent real-sample coverage
-- a future redistributable live-convertible public fixture with full attribution hygiene
+- broader public live-conversion tests that run when external converter prerequisites are explicitly available
 - stronger evidence that the guarded layout option generalizes beyond the current validated samples
 - stricter visual parity on real documents
 
