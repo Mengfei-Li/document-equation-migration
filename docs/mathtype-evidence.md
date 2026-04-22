@@ -31,7 +31,7 @@ This release does **not** claim lossless conversion, pixel-identical layout, or 
 | Execution surface | The detector-first execution surface can route MathType work and drive the existing conversion path when external tools are explicitly allowed. | MathType is not an isolated script only; it is wired into the shared execution model. |
 | Long-run behavior | Resume and chunk controls exist for long MathType runs. | Larger documents can be processed with a more stable recovery path. |
 | Public detector fixtures | Public marker fixtures cover detection, routing, and dry-run evidence. | Public fixtures prove source discovery behavior, not full live conversion. |
-| Public live-control fixture | A minimal attributed base64-encoded MTEF5 OLE payload is included for integrity, detection, temporary DOCX packaging, and optional external-tool conversion tests. | The public tree now has source-controlled material for live-conversion testing, but default CI still does not claim full conversion or visual parity. |
+| Public live-control fixture | A minimal attributed base64-encoded MTEF5 OLE payload is included for integrity, detection, temporary DOCX packaging, and optional external-tool conversion tests. | The public tree now has source-controlled material for live-conversion testing; the external conversion test is skipped by default unless explicitly enabled. |
 | Local live-conversion control | A separate local research-control run proved that the external toolchain can complete end-to-end live conversion on the same payload class. | The live chain works locally, while public release claims remain manual-review gated. |
 
 ## What Users Can Claim Today
@@ -100,6 +100,8 @@ That class exists because:
 
 The public `live_control` fixture now covers the minimal attributed source-material side of that requirement. Full live conversion still requires the documented external tools and should be interpreted conservatively.
 
+The repository includes an optional pytest path for that external conversion check. It is skipped by default and runs only when `DEM_RUN_EXTERNAL_MATHTYPE_TESTS=1` and the documented converter paths are provided.
+
 ## Manual-Review Gate
 
 For the current research-preview release, a MathType output can enter manual review only when all of the following are true:
@@ -142,7 +144,7 @@ Start with the commands in the [README](../README.md), then use the release note
 The next evidence upgrade needs one or more of the following:
 
 - broader independent real-sample coverage
-- broader public live-conversion tests that run when external converter prerequisites are explicitly available
+- broader public live-conversion tests and CI jobs that run only when external converter prerequisites are explicitly available
 - stronger evidence that the guarded layout option generalizes beyond the current validated samples
 - stricter visual parity on real documents
 

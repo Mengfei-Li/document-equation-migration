@@ -71,6 +71,14 @@ The scripts can use explicit parameters or these environment variables:
 - `MATHTYPE_TO_MATHML_DIR`: path to `jure/mathtype_to_mathml`.
 - `MML2OMML_XSL`: path to `MML2OMML.XSL`.
 
+The optional external MathType pytest test is skipped by default. To run it locally, set:
+
+- `DEM_RUN_EXTERNAL_MATHTYPE_TESTS=1`
+
+and provide all five variables above. The test builds a temporary DOCX from the public
+`live_control` fixture, runs the external MathType pipeline, and checks conversion /
+replacement counts. It does not run in ordinary CI unless explicitly enabled.
+
 ## Troubleshooting
 
 | Symptom | Likely Cause | Resolution |
