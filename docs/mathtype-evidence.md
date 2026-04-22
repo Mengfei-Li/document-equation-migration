@@ -33,6 +33,7 @@ This release does **not** claim lossless conversion, pixel-identical layout, or 
 | Public detector fixtures | Public marker fixtures cover detection, routing, and dry-run evidence. | Public fixtures prove source discovery behavior, not full live conversion. |
 | Public live-control fixture | A minimal attributed base64-encoded MTEF5 OLE payload is included for integrity, detection, temporary DOCX packaging, and optional external-tool conversion tests. | The public tree now has source-controlled material for live-conversion testing; the external conversion test is skipped by default unless explicitly enabled. |
 | Local live-conversion control | A separate local research-control run proved that the external toolchain can complete end-to-end live conversion on the same payload class. | The live chain works locally, while public release claims remain manual-review gated. |
+| Legacy MTEF3 fixture normalization | The pipeline adds a default display-mode marker for MTEF3 intermediate XML that omits one. Fixture validation covers 11 MathType 3 payloads and a mixed 12-object DOCX export. | Older MathType 3-style fixture payloads no longer fail only because the display-mode marker is absent. This is fixture/toolchain evidence, not a guarantee for every legacy document. |
 
 ## What Users Can Claim Today
 
@@ -102,6 +103,8 @@ The public `live_control` fixture now covers the minimal attributed source-mater
 
 The repository includes an optional pytest path for that external conversion check. It is skipped by default and runs only when `DEM_RUN_EXTERNAL_MATHTYPE_TESTS=1` and the documented converter paths are provided.
 
+The pipeline also includes a small normalization step for older MTEF3 payloads whose intermediate XML does not contain an `equation_options` display-mode element. Without that marker, the downstream MathML transform has no entry template and returns empty output. The normalization adds a conservative `block` default before MathML conversion. This improves legacy fixture coverage while preserving the research-preview boundary: successful fixture conversion is not the same as universal legacy-document support.
+
 ## Manual-Review Gate
 
 For the current research-preview release, a MathType output can enter manual review only when all of the following are true:
@@ -146,6 +149,7 @@ The next evidence upgrade needs one or more of the following:
 - broader independent real-sample coverage
 - broader public live-conversion tests and CI jobs that run only when external converter prerequisites are explicitly available
 - stronger evidence that the guarded layout option generalizes beyond the current validated samples
+- real-document evidence for legacy MathType 3-style documents, beyond fixture/toolchain validation
 - stricter visual parity on real documents
 
 Until then, the correct release posture is still:

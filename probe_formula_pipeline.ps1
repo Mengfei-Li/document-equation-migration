@@ -31,6 +31,7 @@ $ErrorActionPreference = "Stop"
 $base = Split-Path -Parent $MyInvocation.MyCommand.Path
 $classes = Join-Path $base 'java_bridge\classes'
 $mathmlNormalizer = Join-Path $base 'normalize_mathml.py'
+$displayModeNormalizer = Join-Path $base 'ensure_mathtype_display_mode.py'
 
 function Use-DefaultIfEmpty {
     param(
@@ -171,6 +172,7 @@ if ($filesToConvert.Count -gt 0) {
     $jruby = Require-Path (Join-Path $MathtypeExtensionDir 'lib\jruby-complete-9.3.8.0.jar') 'JRuby runtime'
     $rubyBase = Join-Path $MathtypeExtensionDir 'ruby'
     $transformXsl = Require-Path (Join-Path $MathTypeToMathMlDir 'lib\transform.xsl') 'MathType-to-MathML XSLT'
+    $displayModeNormalizer = Require-Path $displayModeNormalizer 'MathType display-mode normalizer'
 
     $cp = @(
         $classes,
@@ -221,6 +223,7 @@ foreach ($file in $files) {
                 $file.FullName,
                 $xmlPath
             )
+            Invoke-Native 'python' @($displayModeNormalizer, $xmlPath, '--default', 'block')
 
             $xslt = New-Object System.Xml.Xsl.XslCompiledTransform
             $xslt.Load($transformXsl)
