@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible conversion problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include commands and relevant output paths.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Generated artifacts
+      description: Paste small excerpts from summary.csv, pipeline_summary.txt, or risk_analysis.txt. Do not upload private documents.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Windows version, Python version, Java version, Office version

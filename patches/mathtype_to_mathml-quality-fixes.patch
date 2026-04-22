@@ -1,0 +1,102 @@
+diff --git a/lib/transform.xsl b/lib/transform.xsl
+index 8fd47d1..990de9f 100644
+--- a/lib/transform.xsl
++++ b/lib/transform.xsl
+@@ -37,0 +38 @@
++    <xsl:include href="xsl/root.xsl" />
+diff --git a/lib/xsl/char.xsl b/lib/xsl/char.xsl
+index dffed2e..a10dbdc 100644
+--- a/lib/xsl/char.xsl
++++ b/lib/xsl/char.xsl
+@@ -28,3 +28,5 @@
+-        <xsl:call-template name="charhex">
+-            <xsl:with-param name="mt_code_value" select="mt_code_value/text()" />
+-        </xsl:call-template>
++        <mi>
++            <xsl:call-template name="charhex">
++                <xsl:with-param name="mt_code_value" select="mt_code_value/text()" />
++            </xsl:call-template>
++        </mi>
+diff --git a/lib/xsl/matrix.xsl b/lib/xsl/matrix.xsl
+index d270a98..8c40c50 100644
+--- a/lib/xsl/matrix.xsl
++++ b/lib/xsl/matrix.xsl
+@@ -35,0 +36,7 @@
++    <xsl:template match="matrix[not(h_just)]">
++        <mtable>
++            <xsl:variable name="cols" select="number(cols)"/>
++            <xsl:apply-templates select="(slot | pile)[($cols = 1) or ((position() - 1) mod $cols = 0)]" mode="rows-center" />
++        </mtable>
++    </xsl:template>
++
+@@ -38,2 +45,2 @@
+-            <xsl:variable name="rows" select="number(rows)"/>
+-            <xsl:apply-templates select="(slot | pile)[position() mod $rows = 1]" mode="rows-left" />
++            <xsl:variable name="cols" select="number(cols)"/>
++            <xsl:apply-templates select="(slot | pile)[($cols = 1) or ((position() - 1) mod $cols = 0)]" mode="rows-left" />
+@@ -45,2 +52,2 @@
+-            <xsl:variable name="rows" select="number(rows)"/>
+-            <xsl:apply-templates select="(slot | pile)[position() mod $rows = 1]" mode="rows-center" />
++            <xsl:variable name="cols" select="number(cols)"/>
++            <xsl:apply-templates select="(slot | pile)[($cols = 1) or ((position() - 1) mod $cols = 0)]" mode="rows-center" />
+@@ -52,2 +59,2 @@
+-            <xsl:variable name="rows" select="number(rows)"/>
+-            <xsl:apply-templates select="(slot | pile)[position() mod $rows = 1]" mode="rows-right" />
++            <xsl:variable name="cols" select="number(cols)"/>
++            <xsl:apply-templates select="(slot | pile)[($cols = 1) or ((position() - 1) mod $cols = 0)]" mode="rows-right" />
+@@ -58,4 +65,4 @@
+-        <xsl:variable name="rows" select="number(parent::*/rows)"/>
++        <xsl:variable name="cols" select="number(parent::*/cols)"/>
+         <mtr columnalign="left">
+             <xsl:apply-templates select="." mode="columns-left" />
+-            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $rows]" mode="columns-left" />
++            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $cols]" mode="columns-left" />
+@@ -66,4 +73,4 @@
+-        <xsl:variable name="rows" select="number(parent::*/rows)"/>
++        <xsl:variable name="cols" select="number(parent::*/cols)"/>
+         <mtr columnalign="center">
+             <xsl:apply-templates select="." mode="columns-center" />
+-            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $rows]" mode="columns-center" />
++            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $cols]" mode="columns-center" />
+@@ -74,4 +81,4 @@
+-        <xsl:variable name="rows" select="number(parent::*/rows)"/>
++        <xsl:variable name="cols" select="number(parent::*/cols)"/>
+         <mtr columnalign="right">
+             <xsl:apply-templates select="." mode="columns-right" />
+-            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $rows]" mode="columns-right" />
++            <xsl:apply-templates select="(following-sibling::slot | following-sibling::pile)[position() &lt; $cols]" mode="columns-right" />
+diff --git a/lib/xsl/root.xsl b/lib/xsl/root.xsl
+new file mode 100644
+index 0000000..214baf0
+--- /dev/null
++++ b/lib/xsl/root.xsl
+@@ -0,0 +1,18 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
++    xmlns:xs="http://www.w3.org/2001/XMLSchema"
++    exclude-result-prefixes="xs"
++    version="1.0">
++
++    <xsl:template match="tmpl[selector='tmROOT' and (variation='tvROOT_SQ' or not(slot[2]/* | slot[2]/text()[normalize-space()]))]">
++        <msqrt>
++            <xsl:apply-templates select="slot[1] | pile[1]"/>
++        </msqrt>
++    </xsl:template>
++
++    <xsl:template match="tmpl[selector='tmROOT' and not(variation='tvROOT_SQ')]">
++        <mroot>
++            <xsl:apply-templates select="slot[1] | pile[1]"/>
++            <xsl:apply-templates select="slot[2] | pile[2]"/>
++        </mroot>
++    </xsl:template>
++</xsl:stylesheet>
+diff --git a/lib/xsl/subsup.xsl b/lib/xsl/subsup.xsl
+index e393923..15404a9 100644
+--- a/lib/xsl/subsup.xsl
++++ b/lib/xsl/subsup.xsl
+@@ -10 +10 @@
+-            <xsl:apply-templates select="slot[3] | pile[3]"/>
++            <xsl:apply-templates select="slot[2] | pile[2]"/>
+@@ -34 +34 @@
+-            <xsl:apply-templates select="slot[3] | pile[3]"/>
++            <xsl:apply-templates select="slot[2] | pile[2]"/>

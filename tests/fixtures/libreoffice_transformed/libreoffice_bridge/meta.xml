@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:generator>LibreOffice/25.2.0.3$Windows_X86_64 LibreOffice_project/00m0$Build-3</meta:generator>
+    <meta:user-defined meta:name="AG_ORIGINAL_ORIGIN">omml</meta:user-defined>
+    <meta:user-defined meta:name="AG_CONVERSION_MODE">headless-convert-to</meta:user-defined>
+    <meta:user-defined meta:name="AG_INPUT_FILTER">Office Open XML Text</meta:user-defined>
+    <meta:user-defined meta:name="AG_PROFILE_ISOLATED">true</meta:user-defined>
+  </office:meta>
+</office:document-meta>

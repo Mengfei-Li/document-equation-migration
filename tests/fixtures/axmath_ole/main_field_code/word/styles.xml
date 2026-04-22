@@ -1,0 +1,5 @@
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="AMDisplayEquation">
+    <w:name w:val="AMDisplayEquation"/>
+  </w:style>
+</w:styles>

@@ -1,0 +1,27 @@
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:v="urn:schemas-microsoft-com:vml">
+  <w:body>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="AMDisplayEquation"/>
+      </w:pPr>
+      <w:r>
+        <w:t>Before</w:t>
+      </w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i1025" type="#_x0000_t75">
+            <v:imagedata r:id="rIdImage1" o:title=""/>
+          </v:shape>
+          <o:OLEObject Type="Embed" ProgID="Equation.AxMath" ShapeID="_x0000_i1025" DrawAspect="Content" ObjectID="_1001" r:id="rIdOle1"/>
+        </w:object>
+      </w:r>
+      <w:r>
+        <w:t>After</w:t>
+      </w:r>
+    </w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>

@@ -1,0 +1,74 @@
+{
+  "document_id": "sample",
+  "input_path": "sample.docx",
+  "detector_version": "0.1.0",
+  "formula_count": 3,
+  "recommended_sequence": [
+    "mathtype-ole",
+    "omml-native",
+    "equation-editor-3-ole"
+  ],
+  "manual_review_required": true,
+  "steps": [
+    {
+      "source_family": "mathtype-ole",
+      "formula_count": 1,
+      "route_kind": "primary-source-first",
+      "confidence_policy": "high",
+      "requires_manual_review": false,
+      "provider": "mathtype",
+      "next_action": "run-mathtype-source-first-pipeline",
+      "actions": [
+        {
+          "action_id": "extract-equation-native",
+          "description": "Extract Equation Native payload from MathType OLE containers.",
+          "blocking": true,
+          "metadata": {}
+        }
+      ],
+      "notes": [
+        "MathType sample"
+      ]
+    },
+    {
+      "source_family": "omml-native",
+      "formula_count": 1,
+      "route_kind": "primary-source-first",
+      "confidence_policy": "high",
+      "requires_manual_review": false,
+      "provider": "omml",
+      "next_action": "run-omml-native-pipeline",
+      "actions": [
+        {
+          "action_id": "extract-omml",
+          "description": "Extract OMML equations from OOXML document parts.",
+          "blocking": false,
+          "metadata": {}
+        }
+      ],
+      "notes": [
+        "OMML sample"
+      ]
+    },
+    {
+      "source_family": "equation-editor-3-ole",
+      "formula_count": 1,
+      "route_kind": "primary-candidate",
+      "confidence_policy": "medium",
+      "requires_manual_review": true,
+      "provider": "equation3",
+      "next_action": "run-equation3-probe-and-conversion",
+      "actions": [
+        {
+          "action_id": "probe-header-and-classid",
+          "description": "Probe OLE header and ClassID to confirm Equation Editor 3.0 payload.",
+          "blocking": false,
+          "metadata": {}
+        }
+      ],
+      "notes": [
+        "Equation3 sample"
+      ]
+    }
+  ]
+}

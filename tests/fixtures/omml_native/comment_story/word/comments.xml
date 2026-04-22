@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:comment w:id="0">
+    <w:p>
+      <w:r>
+        <m:oMath>
+          <m:r>
+            <m:t>c</m:t>
+          </m:r>
+        </m:oMath>
+      </w:r>
+    </w:p>
+  </w:comment>
+</w:comments>

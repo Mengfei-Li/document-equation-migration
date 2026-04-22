@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "document-equation-migration"
+version = "0.1.0"
+description = "Research-grade document equation source detection and migration tools."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Document Equation Migration contributors" }
+]
+keywords = ["docx", "mathml", "omml", "mathtype", "document-conversion"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Office/Business",
+  "Topic :: Text Processing :: Markup :: XML",
+]
+dependencies = [
+  "olefile>=0.47"
+]
+
+[project.urls]
+Homepage = "https://github.com/Mengfei-Li/document-equation-migration"
+Repository = "https://github.com/Mengfei-Li/document-equation-migration"
+Issues = "https://github.com/Mengfei-Li/document-equation-migration/issues"
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8"
+]
+visual = [
+  "PyMuPDF>=1.23",
+  "Pillow>=10"
+]
+
+[project.scripts]
+dem = "document_equation_migration.cli:main"
+document-equation-migration = "document_equation_migration.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

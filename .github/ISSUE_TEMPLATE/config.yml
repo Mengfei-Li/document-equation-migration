@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Data safety reminder
+    url: https://docs.github.com/en/site-policy/acceptable-use-policies/github-sensitive-data-removal-policy
+    about: Do not upload private or copyrighted documents to public issues.
