@@ -393,7 +393,7 @@ def validate_docx_artifact(
     if allow_word_export:
         report["checks"]["word_export"] = _word_export(target_docx=target_path, output_dir=output_root)
         if report["checks"]["word_export"]["status"] != "passed":
-            report["residual_risks"].append("Word PDF export failed; do not claim deliverable-ready output.")
+            report["residual_risks"].append("Word PDF export failed; output is not deliverable-ready.")
             report["conclusion"] = "blocked"
         else:
             report["conclusion"] = "deliverable-ready"

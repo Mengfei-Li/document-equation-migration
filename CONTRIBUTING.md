@@ -7,14 +7,14 @@ Contributions are welcome, especially reproducible conversion failures, minimal 
 - Confirm the document contains MathType OLE objects, not only images.
 - Re-run with the latest `main` branch.
 - Include the generated `summary.csv`, `pipeline_summary.txt`, and `risk_analysis.txt` when possible.
-- Do not upload copyrighted documents unless you have permission to share them publicly.
+- Copyrighted documents should only be uploaded when they can be shared publicly.
 
 ## Pull Requests
 
 - Keep changes focused.
 - Add or update a minimal fixture when fixing a conversion bug.
 - Avoid adding large generated outputs to git.
-- Do not vendor third-party binaries unless the license and size implications have been reviewed.
+- Third-party binaries are not vendored unless the license and size implications have been reviewed.
 
 ## Development Checks
 

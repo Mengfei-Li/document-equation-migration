@@ -74,7 +74,7 @@ The bootstrap script clones:
 
 It also applies the local quality patch in `patches/mathtype_to_mathml-quality-fixes.patch`. You must comply with the licenses of those projects and their dependencies.
 
-For the full external-tool checklist, known Java charset failure mode, and troubleshooting guidance, see [Dependencies](docs/dependencies.md).
+For the full external-tool requirements, known Java charset failure mode, and troubleshooting guidance, see [Dependencies](docs/dependencies.md).
 
 ## Quick Start
 
@@ -173,12 +173,12 @@ dem run-plan .\out\execution-plan.json --execute --output-dir .\out\execution --
 
 In the current milestone:
 
-- `omml` can execute an internal native-preserving slice that extracts OMML XML fragments, writes a manifest, performs a deterministic packaging pass, and records execution metadata
+- `omml` can execute a native-preserving execution slice that extracts OMML XML fragments, writes a manifest, performs a deterministic packaging pass, and records execution metadata
 - `mathtype` is wired to the existing PowerShell/Python document pipeline, but external tools are blocked unless you explicitly pass `--allow-external-tools`; Word validation remains a separate gate
 - `equation3` provides an Equation Editor 3.0 evidence/probe skeleton only; conversion and Word roundtrip stay manual/review gated until fixture coverage is stronger
 - `axmath` is export-assisted and stays behind external export / validation gates; the project does not claim a native static AxMath parser
 - `odf-native` can execute a native MathML extraction slice from ODF/FODT content, while `libreoffice-transformed` remains a bridge provenance review gate
-- render parity, Word opening, and PDF export are still validation gates; do not treat an execution report alone as proof of deliverable Word output
+- render parity, Word opening, and PDF export are still validation gates; an execution report alone is not proof of deliverable Word output
 
 Execute-mode provider outputs are evidence-oriented:
 
@@ -269,7 +269,7 @@ The categories are:
 - `spot_check`: complex formulas that deserve sampling.
 - `manual_review`: formulas that match patterns associated with likely conversion defects.
 
-Risk analysis is most useful when LaTeX previews are available, so do not use `-SkipLatexPreview` for QA runs.
+Risk analysis is most useful when LaTeX previews are available, so QA runs should keep LaTeX previews enabled when possible.
 
 ## Validation
 
@@ -290,12 +290,9 @@ python .\compare_pdf_visual.py .\original.pdf .\converted.pdf .\out\visual_compa
 
 ## Documentation
 
-- [Project walkthrough (Chinese)](docs/project-walkthrough.zh-CN.md)
 - [Architecture](docs/architecture.md)
 - [Dependencies](docs/dependencies.md)
-- [Dependency inventory (Chinese)](docs/dependency-inventory.zh-CN.md)
 - [Limitations](docs/limitations.md)
-- [Publishing checklist](docs/publishing-checklist.md)
 - [Research-preview release notes](docs/research-preview-release-notes.md)
 
 ## License

@@ -6,14 +6,14 @@ This project is in research preview. Security fixes target the `main` branch unl
 
 ## Reporting a Vulnerability
 
-Please do not open public issues for suspected security vulnerabilities.
+Suspected security vulnerabilities should not be reported through public issues.
 
 Report privately through GitHub's private vulnerability reporting feature if it is enabled for this repository. If it is not enabled, contact the repository owner directly.
 
 ## Document Safety
 
-This project processes Word documents and embedded OLE objects. Treat all untrusted documents as potentially dangerous:
+This project processes Word documents and embedded OLE objects. Untrusted documents should be treated as potentially dangerous:
 
-- Run conversions in a disposable working directory.
-- Do not open untrusted converted documents in Word outside a sandbox.
-- Do not upload private or copyrighted documents to public issues.
+- Conversions should run in a disposable working directory.
+- Untrusted converted documents should not be opened in Word outside a sandbox.
+- Private or copyrighted documents should not be uploaded to public issues.

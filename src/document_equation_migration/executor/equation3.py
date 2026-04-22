@@ -344,7 +344,7 @@ def _review_gated_execution_report(
         output_paths=(str(output_path),),
         notes=(
             "Word open/PDF export/visual parity checks remain review-gated for Equation Editor 3.0.",
-            "Do not treat this status as a deliverable conversion proof.",
+            "This status is not a deliverable conversion proof.",
             f"Blocker record written to {output_path}.",
         ),
     )

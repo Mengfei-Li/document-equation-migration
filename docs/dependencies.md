@@ -25,7 +25,7 @@ Known bad symptom:
 java.nio.charset.UnsupportedCharsetException: ISO-2022-JP
 ```
 
-If this appears, use a full JDK distribution such as Temurin 17+ and set `JAVA_EXE` and `JAVAC_EXE` to that JDK's binaries, or pass the equivalent script parameters. Do not use a machine-specific temporary JDK path in release documentation.
+If this appears, use a full JDK distribution such as Temurin 17+ and set `JAVA_EXE` and `JAVAC_EXE` to that JDK's binaries, or pass the equivalent script parameters. Release documentation avoids machine-specific temporary JDK paths.
 
 `MML2OMML.XSL` must come from a Microsoft Office installation. A common Office path is:
 
@@ -35,13 +35,13 @@ C:\Program Files\Microsoft Office\root\Office16\MML2OMML.XSL
 
 This repository does not vendor Office files.
 
-The MathType converter sources are expected under `third_party/` after running the bootstrap script, or through explicit `MATHTYPE_EXTENSION_DIR` and `MATHTYPE_TO_MATHML_DIR` paths. Do not vendor complete third-party repositories into release artifacts without a license review.
+The MathType converter sources are expected under `third_party/` after running the bootstrap script, or through explicit `MATHTYPE_EXTENSION_DIR` and `MATHTYPE_TO_MATHML_DIR` paths. Complete third-party repositories are not vendored into release artifacts without a license review.
 
 `pandoc`, Word desktop, `PyMuPDF`, and `Pillow` are validation helpers:
 
 - Missing `pandoc`: add `-SkipLatexPreview` when a LaTeX preview is not required.
-- Missing Word desktop: do not claim Word/PDF deliverability.
-- Missing visual comparison packages: do not claim visual parity or a visual gate result.
+- Missing Word desktop: Word/PDF deliverability cannot be claimed.
+- Missing visual comparison packages: visual parity or a visual gate result cannot be claimed.
 
 ## Required for Validation
 
@@ -93,8 +93,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap_third_party.ps1
 The script clones the required converter repositories under `third_party/` and applies `patches/mathtype_to_mathml-quality-fixes.patch`.
 
 The patch is part of this repository because the public upstream `mathtype_to_mathml` output did not reproduce the quality fixes used by this integration pipeline.
-
-For a Chinese inventory of every known dependency and non-original component, see [Dependency inventory](dependency-inventory.zh-CN.md).
 
 ## Why Large Runtimes Are Not Vendored
 

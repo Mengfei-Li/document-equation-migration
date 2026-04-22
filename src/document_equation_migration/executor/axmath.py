@@ -355,7 +355,7 @@ def execute_axmath_step(
                     blocking=action.blocking or step.requires_manual_review,
                     notes=(
                         "Manual semantic and render review remains required for AxMath export-assisted output.",
-                        "Do not treat this step as deliverable until the review gate is satisfied.",
+                        "This step remains non-deliverable until the review gate is satisfied.",
                     ),
                 )
             )
