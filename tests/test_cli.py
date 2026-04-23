@@ -18,10 +18,28 @@ DOCX_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """
 
+LIBREOFFICE_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "libreoffice_transformed"
+
 
 def make_docx(path: Path) -> None:
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("word/document.xml", DOCX_XML)
+
+
+def build_odf_archive(fixture_dir: Path, suffix: str, output_dir: Path) -> Path:
+    archive_path = output_dir / f"{fixture_dir.name}{suffix}"
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        mimetype_path = fixture_dir / "mimetype"
+        if mimetype_path.exists():
+            zf.writestr("mimetype", mimetype_path.read_text(encoding="utf-8"), compress_type=zipfile.ZIP_STORED)
+        for path in sorted(fixture_dir.rglob("*")):
+            if not path.is_file():
+                continue
+            relative_path = path.relative_to(fixture_dir).as_posix()
+            if relative_path == "mimetype":
+                continue
+            zf.write(path, arcname=relative_path, compress_type=zipfile.ZIP_DEFLATED)
+    return archive_path
 
 
 def test_scan_writes_manifest_and_summary_files(tmp_path: Path) -> None:
@@ -119,6 +137,48 @@ def test_run_plan_writes_dry_run_execution_report(tmp_path: Path) -> None:
     assert payload["steps"][0]["provider"] == "mathtype"
     assert payload["steps"][0]["status"] == "runnable"
     assert payload["steps"][1]["status"] == "manual-only"
+
+
+def test_scan_routes_libreoffice_bridge_as_transformed_source(tmp_path: Path) -> None:
+    input_path = build_odf_archive(LIBREOFFICE_FIXTURE_ROOT / "libreoffice_bridge", ".odt", tmp_path)
+    manifest_path = tmp_path / "out" / "manifest.json"
+    summary_path = tmp_path / "out" / "summary.txt"
+    routing_path = tmp_path / "out" / "routing.json"
+    execution_plan_path = tmp_path / "out" / "execution-plan.json"
+
+    exit_code = main(
+        [
+            "scan",
+            str(input_path),
+            "--output",
+            str(manifest_path),
+            "--routing",
+            str(routing_path),
+            "--summary",
+            str(summary_path),
+            "--execution-plan",
+            str(execution_plan_path),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert payload["document"]["container_format"] == "odt"
+    assert payload["document"]["source_counts"] == {"libreoffice-transformed": 1}
+    assert not any("Detector runtime warning" in note for note in payload["document"]["notes"])
+    assert len(payload["formulas"]) == 1
+    assert payload["formulas"][0]["source_family"] == "libreoffice-transformed"
+    assert payload["formulas"][0]["provenance"]["generator_id"] == "libreoffice"
+    assert payload["formulas"][0]["provenance"]["generator_raw"].startswith("LibreOffice/")
+    routing = json.loads(routing_path.read_text(encoding="utf-8"))
+    assert routing["formula_count"] == 1
+    assert routing["recommended_sequence"] == ["libreoffice-transformed"]
+    assert routing["route_plan"][0]["route_kind"] == "bridge-source"
+    execution_plan = json.loads(execution_plan_path.read_text(encoding="utf-8"))
+    assert execution_plan["formula_count"] == 1
+    assert execution_plan["steps"][0]["source_family"] == "libreoffice-transformed"
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "libreoffice-transformed: 1" in summary
 
 
 def test_run_plan_dry_run_surfaces_mathtype_guarded_layout_args(tmp_path: Path) -> None:

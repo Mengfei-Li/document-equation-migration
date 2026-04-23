@@ -14,6 +14,7 @@ from document_equation_migration.detectors.odf_native import detect_odf_native
 
 
 FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "odf_native"
+LIBREOFFICE_FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "libreoffice_transformed"
 
 
 def build_odf_archive(fixture_dir: Path, suffix: str, output_dir: Path) -> Path:
@@ -72,6 +73,17 @@ class OdfNativeDetectorTests(unittest.TestCase):
             result = detect_odf_native(archive_path)
 
             self.assertEqual(result["formula_count"], 0)
+            self.assertEqual(result["formulas"], [])
+
+    def test_suppresses_native_classification_for_libreoffice_bridge_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archive_path = build_odf_archive(LIBREOFFICE_FIXTURE_ROOT / "libreoffice_bridge", ".odt", Path(temp_dir))
+
+            result = detect_odf_native(archive_path)
+
+            self.assertEqual(result["container_format"], "odt")
+            self.assertEqual(result["formula_count"], 0)
+            self.assertEqual(result["source_counts"], {"odf-native": 0})
             self.assertEqual(result["formulas"], [])
 
 

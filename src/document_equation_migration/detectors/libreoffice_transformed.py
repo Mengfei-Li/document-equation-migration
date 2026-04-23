@@ -6,57 +6,32 @@ import sys
 from pathlib import Path
 
 try:
-    from .odf_native import ODF_NS, detect_odf_native, load_odf_package, local_name
+    from .odf_native import (
+        collect_odf_native_formulas,
+        has_libreoffice_bridge_provenance,
+        load_odf_package,
+        meta_value,
+        parse_office_meta,
+    )
 except ImportError:
-    from odf_native import ODF_NS, detect_odf_native, load_odf_package, local_name
+    from odf_native import (
+        collect_odf_native_formulas,
+        has_libreoffice_bridge_provenance,
+        load_odf_package,
+        meta_value,
+        parse_office_meta,
+    )
 
 
 sys.stdout.reconfigure(encoding="utf-8")
 
 
-META_NAME_ATTR = f"{{{ODF_NS['meta']}}}name"
 BRIDGE_FIELD_ALIASES = {
     "original_origin": {"ag_original_origin", "original_origin", "libreoffice_original_origin"},
     "conversion_mode": {"ag_conversion_mode", "conversion_mode", "libreoffice_conversion_mode"},
     "input_filter": {"ag_input_filter", "input_filter", "libreoffice_input_filter"},
     "profile_isolated": {"ag_profile_isolated", "profile_isolated", "libreoffice_profile_isolated"},
 }
-
-
-def normalize_meta_name(name: str) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", name.strip().lower())
-    return normalized.strip("_")
-
-
-def parse_office_meta(path: str | Path) -> dict:
-    package = load_odf_package(path)
-    meta_root = package["xml_roots"].get("meta.xml")
-    generator = ""
-    user_defined: dict[str, str] = {}
-
-    if meta_root is not None:
-        for node in meta_root.iter():
-            tag = local_name(node.tag)
-            if tag == "generator" and not generator:
-                generator = (node.text or "").strip()
-            elif tag == "user-defined":
-                name = node.attrib.get(META_NAME_ATTR) or node.attrib.get("name") or ""
-                value = (node.text or "").strip()
-                if name:
-                    user_defined[normalize_meta_name(name)] = value
-
-    return {
-        "package": package,
-        "generator": generator,
-        "user_defined": user_defined,
-    }
-
-
-def meta_value(user_defined: dict[str, str], key: str) -> str:
-    for alias in BRIDGE_FIELD_ALIASES[key]:
-        if alias in user_defined and user_defined[alias]:
-            return user_defined[alias]
-    return ""
 
 
 def parse_bool(text: str) -> bool | None:
@@ -67,12 +42,6 @@ def parse_bool(text: str) -> bool | None:
         return False
     return None
 
-
-def is_libreoffice_generator(text: str) -> bool:
-    lowered = text.lower()
-    return "libreoffice" in lowered or "collabora office" in lowered
-
-
 def extract_producer_version(generator: str) -> str:
     match = re.search(r"LibreOffice/([0-9][^ $/]*)", generator)
     if match:
@@ -81,9 +50,9 @@ def extract_producer_version(generator: str) -> str:
 
 
 def detect_libreoffice_transformed(path: str | Path) -> dict:
-    native_result = detect_odf_native(path)
-    meta = parse_office_meta(path)
-    generator = meta["generator"]
+    package = load_odf_package(path)
+    meta = parse_office_meta(package)
+    generator = str(meta["generator"])
     user_defined = meta["user_defined"]
 
     original_origin = meta_value(user_defined, "original_origin")
@@ -91,28 +60,18 @@ def detect_libreoffice_transformed(path: str | Path) -> dict:
     input_filter = meta_value(user_defined, "input_filter")
     raw_profile_isolated = meta_value(user_defined, "profile_isolated")
     profile_isolated = parse_bool(raw_profile_isolated)
-
-    has_bridge_provenance = any(
-        value
-        for value in (
-            original_origin,
-            conversion_mode,
-            input_filter,
-            raw_profile_isolated,
-        )
-    )
-
-    if not is_libreoffice_generator(generator) or not has_bridge_provenance:
+    if not has_libreoffice_bridge_provenance(meta):
         return {
-            "input_path": native_result["input_path"],
-            "container_format": native_result["container_format"],
+            "input_path": str(package["path"]),
+            "container_format": package["container_format"],
             "formula_count": 0,
             "source_counts": {"libreoffice-transformed": 0},
             "formulas": [],
         }
 
+    native_formulas = collect_odf_native_formulas(package, suppress_bridge_provenance=False)
     formulas: list[dict] = []
-    for index, item in enumerate(native_result["formulas"], start=1):
+    for index, item in enumerate(native_formulas, start=1):
         risk_flags = ["transformed-source", "libreoffice-bridge"]
         if original_origin:
             risk_flags.append(f"original-origin:{original_origin}")
@@ -136,6 +95,7 @@ def detect_libreoffice_transformed(path: str | Path) -> dict:
                 "provenance": {
                     "transform_chain": ["libreoffice-filter"],
                     "evidence_sources": item["provenance"]["evidence_sources"] + ["meta.xml"],
+                    "generator_id": "libreoffice",
                     "generator_raw": generator,
                 },
                 "libreoffice": {
@@ -151,8 +111,8 @@ def detect_libreoffice_transformed(path: str | Path) -> dict:
             formulas[-1].pop("embedding_target")
 
     return {
-        "input_path": native_result["input_path"],
-        "container_format": native_result["container_format"],
+        "input_path": str(package["path"]),
+        "container_format": package["container_format"],
         "formula_count": len(formulas),
         "source_counts": {"libreoffice-transformed": len(formulas)},
         "formulas": formulas,

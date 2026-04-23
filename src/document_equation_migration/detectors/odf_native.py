@@ -21,6 +21,13 @@ ODF_NS = {
 XLINK_HREF = f"{{{ODF_NS['xlink']}}}href"
 ODF_FORMULA_MIMETYPE = "application/vnd.oasis.opendocument.formula"
 ODF_TEXT_MIMETYPE = "application/vnd.oasis.opendocument.text"
+META_NAME_ATTR = f"{{{ODF_NS['meta']}}}name"
+BRIDGE_FIELD_ALIASES = {
+    "original_origin": {"ag_original_origin", "original_origin", "libreoffice_original_origin"},
+    "conversion_mode": {"ag_conversion_mode", "conversion_mode", "libreoffice_conversion_mode"},
+    "input_filter": {"ag_input_filter", "input_filter", "libreoffice_input_filter"},
+    "profile_isolated": {"ag_profile_isolated", "profile_isolated", "libreoffice_profile_isolated"},
+}
 
 
 def local_name(tag: str) -> str:
@@ -35,6 +42,11 @@ def qname(namespace: str, local: str) -> str:
 
 def parse_xml_bytes(data: bytes) -> ET.Element:
     return ET.fromstring(data)
+
+
+def normalize_meta_name(name: str) -> str:
+    normalized = "".join(char.lower() if char.isalnum() else "_" for char in name.strip())
+    return normalized.strip("_")
 
 
 def is_mathml_math(node: ET.Element | None) -> bool:
@@ -100,6 +112,48 @@ def load_odf_package(path: str | Path) -> dict:
     }
 
 
+def parse_office_meta(package: dict) -> dict[str, object]:
+    meta_root = package["xml_roots"].get("meta.xml")
+    generator = ""
+    user_defined: dict[str, str] = {}
+
+    if meta_root is not None:
+        for node in meta_root.iter():
+            tag = local_name(node.tag)
+            if tag == "generator" and not generator:
+                generator = (node.text or "").strip()
+            elif tag == "user-defined":
+                name = node.attrib.get(META_NAME_ATTR) or node.attrib.get("name") or ""
+                value = (node.text or "").strip()
+                if name:
+                    user_defined[normalize_meta_name(name)] = value
+
+    return {
+        "generator": generator,
+        "user_defined": user_defined,
+    }
+
+
+def meta_value(user_defined: dict[str, str], key: str) -> str:
+    for alias in BRIDGE_FIELD_ALIASES[key]:
+        if alias in user_defined and user_defined[alias]:
+            return user_defined[alias]
+    return ""
+
+
+def is_libreoffice_generator(text: str) -> bool:
+    lowered = text.lower()
+    return "libreoffice" in lowered or "collabora office" in lowered
+
+
+def has_libreoffice_bridge_provenance(meta: dict[str, object]) -> bool:
+    user_defined = meta["user_defined"]
+    return bool(
+        is_libreoffice_generator(str(meta["generator"]))
+        and any(meta_value(user_defined, key) for key in BRIDGE_FIELD_ALIASES)
+    )
+
+
 def _build_record(
     *,
     index: int,
@@ -133,10 +187,15 @@ def _build_record(
     return record
 
 
-def detect_odf_native(path: str | Path) -> dict:
-    package = load_odf_package(path)
-    formulas: list[dict] = []
+def collect_odf_native_formulas(
+    package: dict,
+    *,
+    suppress_bridge_provenance: bool = True,
+) -> list[dict]:
+    if suppress_bridge_provenance and has_libreoffice_bridge_provenance(parse_office_meta(package)):
+        return []
 
+    formulas: list[dict] = []
     content_root = package["xml_roots"].get("content.xml")
     if is_mathml_math(content_root):
         formulas.append(
@@ -179,6 +238,13 @@ def detect_odf_native(path: str | Path) -> dict:
                         evidence_sources=[str(package["path"]), "content.xml", subdocument_member],
                     )
                 )
+
+    return formulas
+
+
+def detect_odf_native(path: str | Path) -> dict:
+    package = load_odf_package(path)
+    formulas = collect_odf_native_formulas(package)
 
     return {
         "input_path": str(package["path"]),

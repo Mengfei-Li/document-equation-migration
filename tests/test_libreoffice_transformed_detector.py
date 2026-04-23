@@ -54,6 +54,8 @@ class LibreOfficeTransformedDetectorTests(unittest.TestCase):
             self.assertEqual(formula["libreoffice"]["input_filter"], "Office Open XML Text")
             self.assertTrue(formula["libreoffice"]["profile_isolated"])
             self.assertEqual(formula["libreoffice"]["producer_version"], "25.2.0.3")
+            self.assertEqual(formula["provenance"]["generator_id"], "libreoffice")
+            self.assertTrue(formula["provenance"]["generator_raw"].startswith("LibreOffice/25.2.0.3"))
 
     def test_requires_bridge_provenance_not_just_libreoffice_generator(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

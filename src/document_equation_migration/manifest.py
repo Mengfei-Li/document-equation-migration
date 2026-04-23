@@ -35,6 +35,7 @@ class ProvenanceRecord:
     raw_payload_status: str = "unknown"
     raw_payload_sha256: str = ""
     transform_chain: list[str] = field(default_factory=list)
+    generator_raw: str = ""
     generator_id: str = ""
     evidence_sources: list[str] = field(default_factory=list)
 
