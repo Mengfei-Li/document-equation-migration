@@ -141,6 +141,21 @@ class EquationEditor3OleDetectorTests(unittest.TestCase):
 
         self.assertEqual(records, [])
 
+    def test_does_not_misclassify_dsmt_progid_with_mtef3_header(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            docx_path = Path(tmp_dir) / "synthetic-dsmt-with-mtef3-header.docx"
+            _build_docx(
+                docx_path,
+                document_xml_name="document_mathtype.xml",
+                document_rels_name="document_equation3.rels.xml",
+                embedding_hex_name="equation3_native_payload.hex",
+                preview_bytes=b"WMF-SYNTHETIC",
+            )
+
+            records = self.module.detect_equation_editor_3_ole(docx_path)
+
+        self.assertEqual(records, [])
+
 
 if __name__ == "__main__":
     unittest.main()

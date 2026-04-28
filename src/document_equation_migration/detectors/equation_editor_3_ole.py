@@ -268,9 +268,10 @@ def _detect_from_embedding(
     prog_id = prog_id_raw or ""
     field_code = field_code_raw or ""
 
+    prog_id_lower = prog_id.lower()
     conflicting_vendor_signal = bool(
-        prog_id.lower().startswith("equation.dstmt")
-        or prog_id.lower().startswith("equation.axmath")
+        prog_id_lower.startswith("equation.dsmt")
+        or prog_id_lower.startswith("equation.axmath")
         or FIELD_CODE_VENDOR_RE.search(field_code)
     )
     if conflicting_vendor_signal:
