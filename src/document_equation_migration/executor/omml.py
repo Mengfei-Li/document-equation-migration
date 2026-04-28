@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import shutil
@@ -8,6 +7,11 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from ..canonical_mathml_evidence import (
+    mathml_property_signals as _mathml_property_signals,
+    property_summary as _property_summary,
+    sha256_text as _sha256_text,
+)
 from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionStep
 from ..omml_to_mathml import omml_fragment_to_mathml
@@ -61,74 +65,6 @@ def _read_json(path: Path) -> dict[str, object] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-
-
-def _sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def _mathml_property_signals(root: ET.Element) -> dict[str, object]:
-    nodes = list(root.iter())
-    return {
-        "root_attributes": dict(root.attrib),
-        "root_display": root.attrib.get("display", ""),
-        "mathml_attribute_count": sum(len(node.attrib) for node in nodes),
-        "has_semantics": any(_local_name(node.tag) == "semantics" for node in nodes),
-        "has_annotation": any(_local_name(node.tag) == "annotation" for node in nodes),
-        "has_mfrac_linethickness": any(
-            "linethickness" in node.attrib
-            for node in nodes
-            if _local_name(node.tag) == "mfrac"
-        ),
-        "has_mfrac_bevelled": any(
-            node.attrib.get("bevelled") == "true"
-            for node in nodes
-            if _local_name(node.tag) == "mfrac"
-        ),
-        "has_mfenced_separators": any(
-            "separators" in node.attrib
-            for node in nodes
-            if _local_name(node.tag) == "mfenced"
-        ),
-        "has_movablelimits": any("movablelimits" in node.attrib for node in nodes),
-        "has_mathvariant": any("mathvariant" in node.attrib for node in nodes),
-        "has_accent": any(node.attrib.get("accent") == "true" for node in nodes),
-        "has_accentunder": any(node.attrib.get("accentunder") == "true" for node in nodes),
-    }
-
-
-def _property_summary(items: list[dict[str, object]]) -> dict[str, object]:
-    property_keys = (
-        "has_semantics",
-        "has_annotation",
-        "has_mfrac_linethickness",
-        "has_mfrac_bevelled",
-        "has_mfenced_separators",
-        "has_movablelimits",
-        "has_mathvariant",
-        "has_accent",
-        "has_accentunder",
-    )
-    signals = [item.get("property_signals", {}) for item in items]
-    root_display_values = sorted(
-        {
-            str(signal.get("root_display"))
-            for signal in signals
-            if isinstance(signal, dict) and signal.get("root_display")
-        }
-    )
-    return {
-        "mathml_attribute_count": sum(
-            int(signal.get("mathml_attribute_count", 0))
-            for signal in signals
-            if isinstance(signal, dict)
-        ),
-        "root_display_values": root_display_values,
-        "signal_counts": {
-            key: sum(1 for signal in signals if isinstance(signal, dict) and signal.get(key))
-            for key in property_keys
-        },
-    }
 
 
 def _read_manifest_summary(output_root: Path) -> dict[str, object]:
