@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -53,6 +54,81 @@ def _candidate_story_parts(names: list[str]) -> list[str]:
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _read_json(path: Path) -> dict[str, object] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _mathml_property_signals(root: ET.Element) -> dict[str, object]:
+    nodes = list(root.iter())
+    return {
+        "root_attributes": dict(root.attrib),
+        "root_display": root.attrib.get("display", ""),
+        "mathml_attribute_count": sum(len(node.attrib) for node in nodes),
+        "has_semantics": any(_local_name(node.tag) == "semantics" for node in nodes),
+        "has_annotation": any(_local_name(node.tag) == "annotation" for node in nodes),
+        "has_mfrac_linethickness": any(
+            "linethickness" in node.attrib
+            for node in nodes
+            if _local_name(node.tag) == "mfrac"
+        ),
+        "has_mfrac_bevelled": any(
+            node.attrib.get("bevelled") == "true"
+            for node in nodes
+            if _local_name(node.tag) == "mfrac"
+        ),
+        "has_mfenced_separators": any(
+            "separators" in node.attrib
+            for node in nodes
+            if _local_name(node.tag) == "mfenced"
+        ),
+        "has_movablelimits": any("movablelimits" in node.attrib for node in nodes),
+        "has_mathvariant": any("mathvariant" in node.attrib for node in nodes),
+        "has_accent": any(node.attrib.get("accent") == "true" for node in nodes),
+        "has_accentunder": any(node.attrib.get("accentunder") == "true" for node in nodes),
+    }
+
+
+def _property_summary(items: list[dict[str, object]]) -> dict[str, object]:
+    property_keys = (
+        "has_semantics",
+        "has_annotation",
+        "has_mfrac_linethickness",
+        "has_mfrac_bevelled",
+        "has_mfenced_separators",
+        "has_movablelimits",
+        "has_mathvariant",
+        "has_accent",
+        "has_accentunder",
+    )
+    signals = [item.get("property_signals", {}) for item in items]
+    root_display_values = sorted(
+        {
+            str(signal.get("root_display"))
+            for signal in signals
+            if isinstance(signal, dict) and signal.get("root_display")
+        }
+    )
+    return {
+        "mathml_attribute_count": sum(
+            int(signal.get("mathml_attribute_count", 0))
+            for signal in signals
+            if isinstance(signal, dict)
+        ),
+        "root_display_values": root_display_values,
+        "signal_counts": {
+            key: sum(1 for signal in signals if isinstance(signal, dict) and signal.get(key))
+            for key in property_keys
+        },
+    }
 
 
 def _read_manifest_summary(output_root: Path) -> dict[str, object]:
@@ -127,9 +203,18 @@ def _read_canonicalization_summary(output_root: Path) -> dict[str, object]:
     return {
         "canonicalization_summary_path": str(summary_path),
         "canonicalization_summary_present": True,
+        "expected_formula_count": summary.get("expected_formula_count"),
         "canonical_mathml_count": summary.get("canonical_mathml_count"),
         "unsupported_fragment_count": summary.get("unsupported_fragment_count"),
+        "formula_count_parity": summary.get("formula_count_parity"),
         "strategy": summary.get("strategy"),
+        "canonical_mathml_dir": summary.get("canonical_mathml_dir"),
+        "property_summary": summary.get("property_summary"),
+        "source_to_canonical_provenance_count": len(
+            summary.get("source_to_canonical_provenance", [])
+            if isinstance(summary.get("source_to_canonical_provenance"), list)
+            else []
+        ),
     }
 
 
@@ -277,6 +362,7 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
     manifest_summary = _read_manifest_summary(output_root)
     normalization_summary = _read_normalization_summary(output_root)
     canonicalization_summary = _read_canonicalization_summary(output_root)
+    canonicalization_payload = _read_json(output_root / "canonicalization-summary.json") or {}
     package_metadata = _read_package_metadata_summary(output_root)
     validation_plan = _read_validation_plan_summary(output_root)
     validation_target = _read_validation_target_summary(output_root)
@@ -369,6 +455,16 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
                 "validation_target": validation_target,
                 "validation_plan": validation_plan,
             },
+            "canonical_artifact_gate": {
+                "formula_count_parity": canonicalization_summary.get("formula_count_parity"),
+                "property_summary": canonicalization_summary.get("property_summary"),
+                "source_to_canonical_provenance_count": canonicalization_summary.get(
+                    "source_to_canonical_provenance_count"
+                ),
+            },
+            "source_to_canonical_provenance": canonicalization_payload.get(
+                "source_to_canonical_provenance", []
+            ),
             "evidence_checks": evidence_checks,
             "observations": [
                 "Manifest, normalization, package and validation-plan artifacts were collected locally.",
@@ -463,26 +559,95 @@ def _canonicalize_omml_fragments(output_root: Path) -> tuple[Path, tuple[Path, .
     canonical_dir = output_root / "canonical-mathml"
     canonical_dir.mkdir(parents=True, exist_ok=True)
     canonical_paths: list[Path] = []
-    unsupported_count = 0
+    unsupported_items: list[dict[str, object]] = []
+    provenance_items: list[dict[str, object]] = []
+    manifest = _read_json(output_root / "manifest.json") or {}
+    manifest_items = manifest.get("items", [])
+    manifest_by_filename = {
+        Path(str(item.get("extracted_path"))).name: item
+        for item in manifest_items
+        if isinstance(item, dict) and item.get("extracted_path")
+    }
 
     for source_path in sorted(normalized_dir.glob("*.xml")):
         target_path = canonical_dir / source_path.name
-        mathml_text = omml_fragment_to_mathml(source_path.read_text(encoding="utf-8"))
+        source_text = source_path.read_text(encoding="utf-8")
+        mathml_text = omml_fragment_to_mathml(source_text)
+        target_text = f'<?xml version="1.0" encoding="UTF-8"?>\n{mathml_text}\n'
+        item = manifest_by_filename.get(source_path.name, {})
+        formula_id = str(item.get("id") or source_path.stem)
+        property_signals: dict[str, object] = {}
+        root_tag = ""
+        try:
+            root = ET.fromstring(mathml_text)
+            root_tag = root.tag
+            property_signals = _mathml_property_signals(root)
+            if _local_name(root.tag) != "math":
+                unsupported_items.append(
+                    {
+                        "formula_id": formula_id,
+                        "source_omml_path": str(source_path),
+                        "status": "not-mathml-root",
+                        "root_tag": root.tag,
+                    }
+                )
+        except ET.ParseError as exc:
+            unsupported_items.append(
+                {
+                    "formula_id": formula_id,
+                    "source_omml_path": str(source_path),
+                    "status": "xml-parse-error",
+                    "error": str(exc),
+                }
+            )
         if "data-omml-unsupported=" in mathml_text:
-            unsupported_count += 1
+            unsupported_items.append(
+                {
+                    "formula_id": formula_id,
+                    "source_omml_path": str(source_path),
+                    "status": "unsupported-omml-structure",
+                }
+            )
         target_path.write_text(
-            f'<?xml version="1.0" encoding="UTF-8"?>\n{mathml_text}\n',
+            target_text,
             encoding="utf-8",
         )
         canonical_paths.append(target_path)
+        provenance_items.append(
+            {
+                "formula_id": formula_id,
+                "source_omml_path": str(source_path),
+                "source_part_path": item.get("part_path"),
+                "source_part_index": item.get("part_index"),
+                "source_kind": item.get("kind"),
+                "canonical_artifact_path": str(target_path),
+                "source_sha256": _sha256_text(source_text),
+                "canonical_sha256": _sha256_text(target_text),
+                "preservation_status": "converted-omml-to-canonical-mathml",
+                "root_tag": root_tag,
+                "property_signals": property_signals,
+            }
+        )
 
     summary_path = output_root / "canonicalization-summary.json"
+    expected_count = int(manifest.get("formula_count", len(canonical_paths)) or 0)
+    unsupported_count = len(unsupported_items)
     _write_json(
         summary_path,
         {
             "strategy": "internal-basic-omml-to-presentation-mathml",
+            "expected_formula_count": expected_count,
             "canonical_mathml_count": len(canonical_paths),
             "unsupported_fragment_count": unsupported_count,
+            "formula_count_parity": (
+                "passed"
+                if expected_count == len(canonical_paths) and unsupported_count == 0
+                else "mismatch"
+            ),
+            "canonical_mathml_dir": str(canonical_dir),
+            "source_to_canonical_provenance": provenance_items,
+            "property_summary": _property_summary(provenance_items),
+            "unsupported_fragments": unsupported_items,
             "items": [str(path) for path in canonical_paths],
         },
     )

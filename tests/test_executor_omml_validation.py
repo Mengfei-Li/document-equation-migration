@@ -281,7 +281,18 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     canonical_summary_path = Path(reports[2].output_paths[0])
     canonical_summary = json.loads(canonical_summary_path.read_text(encoding="utf-8"))
     assert canonical_summary["strategy"] == "internal-basic-omml-to-presentation-mathml"
+    assert canonical_summary["expected_formula_count"] == 1
     assert canonical_summary["canonical_mathml_count"] == 1
+    assert canonical_summary["formula_count_parity"] == "passed"
+    assert len(canonical_summary["source_to_canonical_provenance"]) == 1
+    provenance = canonical_summary["source_to_canonical_provenance"][0]
+    assert provenance["formula_id"] == "omml-0001"
+    assert provenance["source_kind"] == "oMath"
+    assert provenance["source_sha256"]
+    assert provenance["canonical_sha256"]
+    assert provenance["preservation_status"] == "converted-omml-to-canonical-mathml"
+    assert provenance["root_tag"].endswith("}math")
+    assert canonical_summary["property_summary"]["mathml_attribute_count"] == 0
     canonical_mathml_path = Path(reports[2].output_paths[1])
     canonical_mathml = canonical_mathml_path.read_text(encoding="utf-8")
     assert "<math:math" in canonical_mathml
@@ -302,6 +313,10 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     assert validation_evidence["artifacts"]["manifest"]["formula_count"] == 1
     assert validation_evidence["artifacts"]["normalization_summary"]["normalized_count"] == 1
     assert validation_evidence["artifacts"]["canonicalization_summary"]["canonical_mathml_count"] == 1
+    assert validation_evidence["artifacts"]["canonicalization_summary"]["formula_count_parity"] == "passed"
+    assert validation_evidence["canonical_artifact_gate"]["formula_count_parity"] == "passed"
+    assert validation_evidence["canonical_artifact_gate"]["source_to_canonical_provenance_count"] == 1
+    assert len(validation_evidence["source_to_canonical_provenance"]) == 1
     assert validation_evidence["artifacts"]["package_metadata"]["provider"] == "omml"
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_present"] is True
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_docx"] == str(validation_target_path)
@@ -349,6 +364,16 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
     assert manifest["formula_count"] == 22
     assert canonical_summary["canonical_mathml_count"] == 22
     assert canonical_summary["unsupported_fragment_count"] == 0
+    assert canonical_summary["formula_count_parity"] == "passed"
+    assert len(canonical_summary["source_to_canonical_provenance"]) == 22
+    signal_counts = canonical_summary["property_summary"]["signal_counts"]
+    assert signal_counts["has_mfrac_linethickness"] == 1
+    assert signal_counts["has_mfrac_bevelled"] == 1
+    assert signal_counts["has_mfenced_separators"] == 1
+    assert signal_counts["has_movablelimits"] == 1
+    assert signal_counts["has_mathvariant"] == 1
+    assert signal_counts["has_accent"] >= 1
+    assert signal_counts["has_accentunder"] >= 1
 
     canonical_text = "\n".join(
         Path(path).read_text(encoding="utf-8")
