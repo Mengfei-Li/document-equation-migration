@@ -13,6 +13,81 @@ RUNNER = "internal-equation3-probe"
 BLOCKER_RECORD_FILENAME = "blocker-record.json"
 
 
+def equation3_fixture_admissibility_requirements() -> dict[str, object]:
+    return {
+        "target_stage": "fixture-backed-canonical-mathml-conversion",
+        "minimum_fixture_set": (
+            "At least one redistributable or explicitly authorized DOCX containing a real Equation.3 "
+            "native OLE payload, not only a preview image or marker payload."
+        ),
+        "required_candidate_properties": [
+            {
+                "id": "equation3-identity",
+                "description": "The detector record identifies the source as Equation Editor 3.0.",
+                "evidence_fields": (
+                    "source_family=equation-editor-3-ole",
+                    "provenance.prog_id_raw=Equation.3 or field_code_raw contains EMBED Equation",
+                    "source_specific.equation_editor_3.class_id_raw",
+                ),
+            },
+            {
+                "id": "native-payload",
+                "description": "The fixture exposes a readable native OLE payload, not just a rendered preview.",
+                "evidence_fields": (
+                    "source_role=native-source",
+                    "provenance.raw_payload_status=present",
+                    "provenance.raw_payload_sha256",
+                    "provenance.payload_stream_name",
+                ),
+            },
+            {
+                "id": "mtef-v3-header",
+                "description": "The native payload has Equation Editor 3.0 / MTEF v3 header evidence.",
+                "evidence_fields": (
+                    "source_specific.equation_editor_3.native_header_size_bytes",
+                    "source_specific.equation_editor_3.mtef_version=3",
+                    "source_specific.equation_editor_3.selected_route=mtef-v3-mainline",
+                ),
+            },
+            {
+                "id": "canonical-output",
+                "description": "A conversion attempt emits valid canonical MathML artifacts with formula-count parity.",
+                "evidence_fields": (
+                    "canonical-mathml/*.xml",
+                    "canonicalization-summary.json",
+                    "canonical_mathml_count equals fixture formula count",
+                    "unsupported_fragment_count recorded",
+                ),
+            },
+            {
+                "id": "provenance-map",
+                "description": "Each canonical MathML artifact remains traceable to the source DOCX object.",
+                "evidence_fields": (
+                    "formula_id",
+                    "doc_part_path",
+                    "relationship_id",
+                    "embedding_target",
+                    "raw_payload_sha256",
+                ),
+            },
+        ],
+        "disqualifying_conditions": [
+            "preview-only fixture",
+            "marker-text payload instead of binary native payload",
+            "missing or corrupt OLE payload",
+            "conflicting MathType or AxMath vendor signal",
+            "no valid canonical MathML output",
+            "unclear redistribution or use permission for public fixture promotion",
+        ],
+        "promotion_gate": [
+            "Detector evidence proves native Equation.3 source identity.",
+            "Canonical MathML output validates as XML and preserves formula count.",
+            "Conversion report keeps provenance for every source formula.",
+            "DOCX/Word validation is attempted only after canonical conversion evidence exists.",
+        ],
+    }
+
+
 def _dry_run_output_root(context: DryRunContext) -> Path:
     return Path(context.output_dir_hint) / "equation-editor-3-ole"
 
@@ -108,6 +183,7 @@ def _write_blocker_record(step: ExecutionStep, context: ExecutionContext) -> Pat
             "fixture_status": "insufficient",
             "fixture_gap": "Equation Editor 3.0 fixture coverage is not strong enough for a deliverable conversion claim.",
             "next_ready_condition": "Add stronger Equation Editor 3.0 fixtures that exercise probe evidence and conversion output, then rerun execute.",
+            "fixture_admissibility": equation3_fixture_admissibility_requirements(),
             "execution_plan_path": context.execution_plan_path,
             "input_path": context.input_path,
             "output_root": str(output_root),
@@ -150,6 +226,7 @@ def _probe_dry_run_report(
         notes=(
             "Supported probe skeleton only: confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
             "This action does not claim conversion readiness or deliverable Word output.",
+            "Next stage requires a fixture-backed canonical MathML conversion attempt that satisfies the blocker checklist.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
     )
@@ -174,6 +251,7 @@ def _manual_gate_dry_run_report(
         notes=(
             note,
             "Real Equation Editor 3.0 fixture coverage is not strong enough to advertise an executable conversion binding.",
+            "Use the blocker-record fixture admissibility checklist before promoting this source line.",
         ),
     )
 
@@ -295,6 +373,7 @@ def _probe_execution_report(
         notes=(
             "Execution is intentionally limited to an evidence/probe skeleton for Equation Editor 3.0.",
             "No payload conversion, OMML replacement, or deliverable Word artifact is produced by this provider.",
+            "The blocker record lists the exact fixture admissibility requirements for the next canonical MathML stage.",
             f"Blocker record written to {output_path}.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),

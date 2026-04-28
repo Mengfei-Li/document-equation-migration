@@ -6,6 +6,7 @@ import pytest
 from document_equation_migration.execution_plan.model import ExecutionAction, ExecutionStep
 from document_equation_migration.executor.equation3 import (
     build_equation3_dry_run_reports,
+    equation3_fixture_admissibility_requirements,
     execute_equation3_step,
 )
 from document_equation_migration.executor.model import DryRunContext, ExecutionContext
@@ -75,8 +76,10 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[0].status == "ready"
     assert reports[0].runner == "internal-equation3-probe"
     assert reports[0].argv[0] == "probe-equation3-evidence"
+    assert "fixture-backed canonical MathML" in "\n".join(reports[0].notes)
     assert reports[1].supported is False
     assert reports[1].status == "manual-gate"
+    assert "fixture admissibility checklist" in "\n".join(reports[1].notes)
     assert reports[2].status == "manual-gate"
     assert reports[3].status == "review-gated"
 
@@ -115,6 +118,22 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
     assert blocker_record["fixture_status"] == "insufficient"
     assert "deliverable conversion claim" in blocker_record["fixture_gap"]
     assert "stronger Equation Editor 3.0 fixtures" in blocker_record["next_ready_condition"]
+    assert blocker_record["fixture_admissibility"]["target_stage"] == "fixture-backed-canonical-mathml-conversion"
+    required_property_ids = {
+        item["id"] for item in blocker_record["fixture_admissibility"]["required_candidate_properties"]
+    }
+    assert required_property_ids == {
+        "equation3-identity",
+        "native-payload",
+        "mtef-v3-header",
+        "canonical-output",
+        "provenance-map",
+    }
+    assert "preview-only fixture" in blocker_record["fixture_admissibility"]["disqualifying_conditions"]
+    assert any(
+        "Canonical MathML output validates" in gate
+        for gate in blocker_record["fixture_admissibility"]["promotion_gate"]
+    )
     assert blocker_record["probe"]["runner"] == "internal-equation3-probe"
     assert blocker_record["probe"]["signals"] == ["prog-id", "class-id", "eqnolefilehdr", "mtef-v3-header"]
     assert [action["action_id"] for action in blocker_record["actions"]] == [
@@ -129,6 +148,7 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
 
     combined_notes = "\n".join("\n".join(report.notes) for report in reports)
     assert "No payload conversion" in combined_notes
+    assert "fixture admissibility requirements" in combined_notes
     assert "Blocker record written to" in combined_notes
     assert "deliverable conversion proof" in combined_notes
 
@@ -141,3 +161,15 @@ def test_equation3_provider_rejects_wrong_source_family(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         execute_equation3_step(step, _execution_context(tmp_path))
+
+
+def test_equation3_fixture_admissibility_keeps_public_promotion_gated() -> None:
+    requirements = equation3_fixture_admissibility_requirements()
+
+    assert requirements["target_stage"] == "fixture-backed-canonical-mathml-conversion"
+    assert "real Equation.3" in requirements["minimum_fixture_set"]
+    assert "preview-only fixture" in requirements["disqualifying_conditions"]
+    assert "unclear redistribution or use permission for public fixture promotion" in requirements[
+        "disqualifying_conditions"
+    ]
+    assert any("Canonical MathML output validates" in item for item in requirements["promotion_gate"])
