@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionAction, ExecutionStep
@@ -298,6 +299,133 @@ def _validation_evidence_path(output_root: Path) -> Path:
     return output_root / "validation-evidence.json"
 
 
+def _canonicalization_summary_path(output_root: Path) -> Path:
+    return output_root / "canonicalization-summary.json"
+
+
+def _canonical_mathml_dir(output_root: Path) -> Path:
+    return output_root / "canonical-mathml"
+
+
+def _converted_mathml_paths(output_root: Path) -> tuple[Path, ...]:
+    converted_dir = output_root / "converted"
+    if not converted_dir.exists():
+        return ()
+    paths: list[Path] = []
+    for pattern in ("*.mml", "*.mathml"):
+        paths.extend(converted_dir.glob(pattern))
+    return tuple(sorted(paths))
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1] if "}" in tag else tag
+
+
+def _is_mathml_root(root: ET.Element) -> bool:
+    return _local_name(root.tag) == "math"
+
+
+def _write_canonical_mathml_artifacts(
+    *,
+    output_root: Path,
+    step: ExecutionStep,
+) -> dict[str, object]:
+    canonical_dir = _canonical_mathml_dir(output_root)
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    canonical_items: list[dict[str, object]] = []
+    unsupported_items: list[dict[str, object]] = []
+
+    for index, source_path in enumerate(_converted_mathml_paths(output_root), start=1):
+        try:
+            text = source_path.read_text(encoding="utf-8-sig").strip()
+        except OSError as exc:
+            unsupported_items.append(
+                {
+                    "source_path": str(source_path),
+                    "status": "read-error",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        if not text:
+            unsupported_items.append(
+                {
+                    "source_path": str(source_path),
+                    "status": "empty-or-bom-only",
+                }
+            )
+            continue
+
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError as exc:
+            unsupported_items.append(
+                {
+                    "source_path": str(source_path),
+                    "status": "xml-parse-error",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        if not _is_mathml_root(root):
+            unsupported_items.append(
+                {
+                    "source_path": str(source_path),
+                    "status": "not-mathml-root",
+                    "root_tag": root.tag,
+                }
+            )
+            continue
+
+        formula_id = f"mathtype-canonical-{len(canonical_items) + 1:04d}"
+        target_path = canonical_dir / f"{formula_id}.xml"
+        target_path.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n{text}\n', encoding="utf-8")
+        canonical_items.append(
+            {
+                "formula_id": formula_id,
+                "source_mathml_path": str(source_path),
+                "canonical_artifact_path": str(target_path),
+                "source_family": _SOURCE_FAMILY,
+                "provider": _PROVIDER_NAME,
+                "source_index": index,
+            }
+        )
+
+    expected_count = step.formula_count
+    canonical_count = len(canonical_items)
+    unsupported_count = len(unsupported_items)
+    parity_status = (
+        "passed"
+        if expected_count == canonical_count and unsupported_count == 0
+        else "mismatch"
+        if expected_count != canonical_count
+        else "unsupported-fragments"
+    )
+    gate_status = (
+        "passed"
+        if canonical_count > 0 and parity_status == "passed"
+        else "blocked-canonical-artifact"
+    )
+    summary: dict[str, object] = {
+        "artifact_type": "mathtype-canonicalization-summary",
+        "provider": _PROVIDER_NAME,
+        "source_family": _SOURCE_FAMILY,
+        "strategy": "materialize-normalized-mathml",
+        "expected_formula_count": expected_count,
+        "canonical_mathml_count": canonical_count,
+        "unsupported_fragment_count": unsupported_count,
+        "formula_count_parity": parity_status,
+        "gate_status": gate_status,
+        "canonical_mathml_dir": str(canonical_dir),
+        "source_to_canonical_provenance": canonical_items,
+        "unsupported_fragments": unsupported_items,
+    }
+    _write_json(_canonicalization_summary_path(output_root), summary)
+    return summary
+
+
 def _step_summaries(step: ExecutionStep, status: str) -> list[dict[str, object]]:
     return [
         {
@@ -362,6 +490,7 @@ def _write_validation_evidence(
         for action in step.actions
         if action.action_id != executed_report.action_id and action.action_id != "validate-word-output"
     ]
+    canonicalization_summary = _write_canonical_mathml_artifacts(output_root=output_root, step=step)
     payload: dict[str, object] = {
         "artifact_type": "mathtype-validation-evidence",
         "provider": _PROVIDER_NAME,
@@ -388,10 +517,15 @@ def _write_validation_evidence(
             "artifact_path": str(blocker_path),
         },
         "canonical_artifact_gate": {
-            "status": "review-gated",
+            "status": canonicalization_summary["gate_status"],
             "conversion_claim": False,
             "admissibility": mathtype_canonical_artifact_requirements(),
+            "canonicalization_summary_path": str(_canonicalization_summary_path(output_root)),
+            "canonical_mathml_count": canonicalization_summary["canonical_mathml_count"],
+            "unsupported_fragment_count": canonicalization_summary["unsupported_fragment_count"],
+            "formula_count_parity": canonicalization_summary["formula_count_parity"],
         },
+        "source_to_canonical_provenance": canonicalization_summary["source_to_canonical_provenance"],
         "next_ready_condition": (
             "Accept canonical MathML artifacts with provenance before treating downstream OMML / Word output as deliverable."
         ),

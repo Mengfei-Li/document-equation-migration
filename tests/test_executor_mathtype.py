@@ -216,6 +216,13 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
 
     def fake_run(argv, *, cwd, text, stdout, stderr, check):
         calls.append((tuple(argv), cwd))
+        output_dir = Path(argv[argv.index("-OutputDir") + 1])
+        converted_dir = output_dir / "converted"
+        converted_dir.mkdir(parents=True, exist_ok=True)
+        (converted_dir / "formula-0001.mml").write_text(
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>',
+            encoding="utf-8",
+        )
         return subprocess.CompletedProcess(
             args=argv,
             returncode=0,
@@ -270,13 +277,26 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
     assert evidence_record["artifact_type"] == "mathtype-validation-evidence"
     assert evidence_record["pipeline"]["action_id"] == "extract-equation-native"
     assert evidence_record["validation_gate"]["artifact_path"] == str(blocker_path)
-    assert evidence_record["canonical_artifact_gate"]["status"] == "review-gated"
+    assert evidence_record["canonical_artifact_gate"]["status"] == "passed"
     assert evidence_record["canonical_artifact_gate"]["conversion_claim"] is False
+    assert evidence_record["canonical_artifact_gate"]["canonical_mathml_count"] == 1
+    assert evidence_record["canonical_artifact_gate"]["unsupported_fragment_count"] == 0
+    assert evidence_record["canonical_artifact_gate"]["formula_count_parity"] == "passed"
     assert (
         evidence_record["canonical_artifact_gate"]["admissibility"]["target_stage"]
         == "equation-native-mtef-to-canonical-mathml"
     )
+    assert len(evidence_record["source_to_canonical_provenance"]) == 1
+    canonical_path = Path(evidence_record["source_to_canonical_provenance"][0]["canonical_artifact_path"])
+    assert canonical_path.exists()
+    assert "<math" in canonical_path.read_text(encoding="utf-8")
     assert evidence_record["covered_actions"][0]["action_id"] == "mtef-to-mathml"
+
+    canonical_summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
+    assert canonical_summary["artifact_type"] == "mathtype-canonicalization-summary"
+    assert canonical_summary["strategy"] == "materialize-normalized-mathml"
+    assert canonical_summary["canonical_mathml_count"] == 1
+    assert canonical_summary["formula_count_parity"] == "passed"
 
     blocker_record = json.loads(blocker_path.read_text(encoding="utf-8"))
     assert blocker_record["artifact_type"] == "mathtype-blocker-record"
@@ -284,6 +304,44 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
     assert blocker_record["conversion_claim"] is False
     assert "canonical_artifact_admissibility" in blocker_record
     assert blocker_record["pipeline_artifact_path"] == str(evidence_path)
+
+
+def test_mathtype_execute_allowed_records_invalid_mathml_as_unsupported(monkeypatch, tmp_path: Path) -> None:
+    def fake_run(argv, *, cwd, text, stdout, stderr, check):
+        output_dir = Path(argv[argv.index("-OutputDir") + 1])
+        converted_dir = output_dir / "converted"
+        converted_dir.mkdir(parents=True, exist_ok=True)
+        (converted_dir / "empty.mml").write_text("\ufeff", encoding="utf-8")
+        (converted_dir / "broken.mathml").write_text("<math><mi>x</math>", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=argv,
+            returncode=0,
+            stdout="pipeline stdout\n",
+            stderr="pipeline stderr\n",
+        )
+
+    monkeypatch.setattr("document_equation_migration.executor.mathtype.subprocess.run", fake_run)
+    context = ExecutionContext(
+        workspace_root=str(tmp_path),
+        execution_plan_path="",
+        input_path=str(tmp_path / "sample.docx"),
+        output_dir=str(tmp_path / "execution"),
+        allow_external_tools=True,
+    )
+
+    execute_mathtype_step(make_mathtype_step(), context)
+
+    output_root = tmp_path / "execution" / "mathtype"
+    evidence_record = json.loads((output_root / "validation-evidence.json").read_text(encoding="utf-8"))
+    canonical_summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
+    assert evidence_record["canonical_artifact_gate"]["status"] == "blocked-canonical-artifact"
+    assert evidence_record["canonical_artifact_gate"]["canonical_mathml_count"] == 0
+    assert evidence_record["canonical_artifact_gate"]["unsupported_fragment_count"] == 2
+    assert canonical_summary["unsupported_fragment_count"] == 2
+    assert {item["status"] for item in canonical_summary["unsupported_fragments"]} == {
+        "empty-or-bom-only",
+        "xml-parse-error",
+    }
 
 
 def test_mathtype_execute_allowed_passes_guarded_layout_args_when_enabled(monkeypatch, tmp_path: Path) -> None:
