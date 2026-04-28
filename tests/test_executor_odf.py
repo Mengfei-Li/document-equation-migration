@@ -67,6 +67,37 @@ FODT_WITH_COMMON_MATHML_STRUCTURES = b"""<?xml version="1.0" encoding="UTF-8"?>
           </math:mrow>
         </math:math>
       </text:p>
+      <text:p>
+        <math:math>
+          <math:mtable>
+            <math:mtr><math:mtd><math:mrow><math:mi>x</math:mi><math:mo>=</math:mo><math:mn>1</math:mn></math:mrow></math:mtd></math:mtr>
+            <math:mtr><math:mtd><math:mrow><math:mi>y</math:mi><math:mo>=</math:mo><math:mn>2</math:mn></math:mrow></math:mtd></math:mtr>
+          </math:mtable>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:mtable>
+            <math:mtr><math:mtd><math:mn>1</math:mn></math:mtd><math:mtd><math:mn>0</math:mn></math:mtd></math:mtr>
+            <math:mtr><math:mtd><math:mn>0</math:mn></math:mtd><math:mtd><math:mn>1</math:mn></math:mtd></math:mtr>
+          </math:mtable>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:mover accent="true"><math:mi>x</math:mi><math:mo>~</math:mo></math:mover></math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:mover><math:mi>x</math:mi><math:mo>&#x00AF;</math:mo></math:mover></math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:mrow><math:mi>sin</math:mi><math:mo>&#x2061;</math:mo><math:mi>x</math:mi></math:mrow></math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:munder><math:mi>lim</math:mi><math:mn>0</math:mn></math:munder></math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:mover><math:mi>x</math:mi><math:mo>^</math:mo></math:mover></math:math>
+      </text:p>
     </office:text>
   </office:body>
 </office:document-content>
@@ -212,8 +243,8 @@ def test_execute_odf_native_preserves_common_canonical_mathml_structures(tmp_pat
 
     manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
     canonical_summary = json.loads(Path(reports[1].output_paths[0]).read_text(encoding="utf-8"))
-    assert manifest["formula_count"] == 6
-    assert canonical_summary["canonical_mathml_count"] == 6
+    assert manifest["formula_count"] == 13
+    assert canonical_summary["canonical_mathml_count"] == 13
 
     canonical_text = "\n".join(
         Path(path).read_text(encoding="utf-8")
@@ -226,6 +257,15 @@ def test_execute_odf_native_preserves_common_canonical_mathml_structures(tmp_pat
     assert "<math:mfenced" in canonical_text
     assert "<math:munderover>" in canonical_text
     assert f"<math:mo>{chr(0x2211)}</math:mo>" in canonical_text
+    assert canonical_text.count("<math:mtable>") == 2
+    assert "<math:mtr>" in canonical_text
+    assert "<math:mtd>" in canonical_text
+    assert "<math:mover accent=\"true\">" in canonical_text
+    assert f"<math:mo>{chr(0x00AF)}</math:mo>" in canonical_text
+    assert "<math:mi>sin</math:mi>" in canonical_text
+    assert f"<math:mo>{chr(0x2061)}</math:mo>" in canonical_text
+    assert "<math:munder>" in canonical_text
+    assert "<math:mo>^</math:mo>" in canonical_text
 
 
 def test_execute_odf_native_extracts_mathml_from_odt_subdocument(tmp_path: Path) -> None:
