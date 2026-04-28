@@ -16,6 +16,20 @@ from document_equation_migration.detectors.odf_native import detect_odf_native
 FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "odf_native"
 LIBREOFFICE_FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "libreoffice_transformed"
 
+FODT_WITH_INLINE_MATHML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+    xmlns:math="http://www.w3.org/1998/Math/MathML">
+  <office:body>
+    <office:text>
+      <text:p><math:math><math:mfrac><math:mn>1</math:mn><math:mn>2</math:mn></math:mfrac></math:math></text:p>
+      <text:p><math:math><math:msup><math:mi>x</math:mi><math:mn>2</math:mn></math:msup></math:math></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+"""
+
 
 def build_odf_archive(fixture_dir: Path, suffix: str, output_dir: Path) -> Path:
     archive_path = output_dir / f"{fixture_dir.name}{suffix}"
@@ -65,6 +79,25 @@ class OdfNativeDetectorTests(unittest.TestCase):
             self.assertEqual(formula["embedding_target"], "./Object 1")
             self.assertEqual(formula["doc_part_path"], "Object 1/content.xml")
             self.assertEqual(formula["risk_level"], "low")
+
+    def test_detects_inline_fodt_mathml_payloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "inline.fodt"
+            path.write_bytes(FODT_WITH_INLINE_MATHML)
+
+            result = detect_odf_native(path)
+
+            self.assertEqual(result["container_format"], "fodt")
+            self.assertEqual(result["formula_count"], 2)
+            self.assertEqual(result["source_counts"], {"odf-native": 2})
+            self.assertEqual(
+                {formula["storage_kind"] for formula in result["formulas"]},
+                {"odf-content-inline-mathml"},
+            )
+            self.assertEqual(
+                {formula["doc_part_path"] for formula in result["formulas"]},
+                {"content.xml"},
+            )
 
     def test_returns_empty_when_no_mathml_payload_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

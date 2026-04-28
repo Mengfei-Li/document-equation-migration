@@ -53,6 +53,22 @@ def is_mathml_math(node: ET.Element | None) -> bool:
     return node is not None and node.tag == qname(MATHML_NS, "math")
 
 
+def iter_content_inline_math_nodes(root: ET.Element) -> list[ET.Element]:
+    math_nodes: list[ET.Element] = []
+
+    def visit(node: ET.Element, *, inside_draw_object: bool) -> None:
+        current_inside_draw_object = inside_draw_object or node.tag == qname(ODF_NS["draw"], "object")
+        for child in list(node):
+            child_inside_draw_object = current_inside_draw_object or child.tag == qname(ODF_NS["draw"], "object")
+            if is_mathml_math(child) and not child_inside_draw_object:
+                math_nodes.append(child)
+                continue
+            visit(child, inside_draw_object=child_inside_draw_object)
+
+    visit(root, inside_draw_object=False)
+    return math_nodes
+
+
 def normalize_href(href: str) -> str:
     normalized = href.replace("\\", "/").split("#", 1)[0].strip()
     while normalized.startswith("./"):
@@ -208,6 +224,17 @@ def collect_odf_native_formulas(
             )
         )
     elif content_root is not None:
+        for _math_node in iter_content_inline_math_nodes(content_root):
+            formulas.append(
+                _build_record(
+                    index=len(formulas) + 1,
+                    member_path="content.xml",
+                    storage_kind="odf-content-inline-mathml",
+                    embedding_target=None,
+                    evidence_sources=[str(package["path"]), "content.xml"],
+                )
+            )
+
         for node in content_root.iter():
             if node.tag != qname(ODF_NS["draw"], "object"):
                 continue
