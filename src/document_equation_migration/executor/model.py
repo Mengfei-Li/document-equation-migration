@@ -55,6 +55,7 @@ class DryRunStepReport:
     status: str
     actions: tuple[DryRunActionReport, ...] = ()
     notes: tuple[str, ...] = ()
+    canonical_target: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -65,6 +66,7 @@ class DryRunStepReport:
             "next_action": self.next_action,
             "requires_manual_review": self.requires_manual_review,
             "status": self.status,
+            "canonical_target": dict(self.canonical_target),
             "actions": [action.to_dict() for action in self.actions],
             "notes": list(self.notes),
         }
@@ -153,6 +155,7 @@ class StepExecutionReport:
     status: str
     actions: tuple[ActionExecutionReport, ...] = ()
     notes: tuple[str, ...] = ()
+    canonical_target: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -163,6 +166,7 @@ class StepExecutionReport:
             "next_action": self.next_action,
             "requires_manual_review": self.requires_manual_review,
             "status": self.status,
+            "canonical_target": dict(self.canonical_target),
             "actions": [action.to_dict() for action in self.actions],
             "notes": list(self.notes),
         }

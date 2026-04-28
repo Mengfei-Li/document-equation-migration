@@ -74,6 +74,14 @@ def build_omml_execution_step(route_entry: RouteEntry) -> ExecutionStep:
                 },
             ),
             ExecutionAction(
+                action_id="omml-to-canonical-mathml",
+                description="Convert normalized OMML fragments to canonical MathML for downstream pipelines.",
+                metadata={
+                    "input": "normalized-omml",
+                    "output": "canonical-mathml",
+                },
+            ),
+            ExecutionAction(
                 action_id="render-check",
                 description="Run render parity checks against source equations.",
                 blocking=requires_manual_review,

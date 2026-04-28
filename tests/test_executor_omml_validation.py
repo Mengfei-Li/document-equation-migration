@@ -43,6 +43,10 @@ def make_omml_step(*, requires_manual_review: bool = False) -> ExecutionStep:
                 description="Normalize OMML structure for deterministic downstream conversion.",
             ),
             ExecutionAction(
+                action_id="omml-to-canonical-mathml",
+                description="Convert normalized OMML fragments to canonical MathML.",
+            ),
+            ExecutionAction(
                 action_id="render-check",
                 description="Create validation plan for render parity checks.",
                 blocking=requires_manual_review,
@@ -73,10 +77,11 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     assert [report.action_id for report in reports] == [
         "extract-omml",
         "normalize-omml",
+        "omml-to-canonical-mathml",
         "render-check",
         "package-omml-output",
     ]
-    assert [report.status for report in reports] == ["completed", "completed", "skipped", "completed"]
+    assert [report.status for report in reports] == ["completed", "completed", "completed", "skipped", "completed"]
 
     manifest_path = Path(reports[0].output_paths[0])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -84,7 +89,16 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     assert manifest["items"][0]["kind"] == "oMath"
     assert Path(manifest["items"][0]["extracted_path"]).exists()
 
-    package_report = reports[3]
+    canonical_summary_path = Path(reports[2].output_paths[0])
+    canonical_summary = json.loads(canonical_summary_path.read_text(encoding="utf-8"))
+    assert canonical_summary["strategy"] == "internal-basic-omml-to-presentation-mathml"
+    assert canonical_summary["canonical_mathml_count"] == 1
+    canonical_mathml_path = Path(reports[2].output_paths[1])
+    canonical_mathml = canonical_mathml_path.read_text(encoding="utf-8")
+    assert "<math:math" in canonical_mathml
+    assert "<math:mi>x</math:mi>" in canonical_mathml
+
+    package_report = reports[4]
     validation_target_path = Path(package_report.output_paths[1])
     validation_evidence_path = Path(package_report.output_paths[2])
     assert validation_target_path.exists()
@@ -94,8 +108,11 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     assert validation_evidence["artifact_type"] == "omml-validation-evidence"
     assert validation_evidence["status"] == "evidence-collected"
     assert validation_evidence["gate_status"] == "pending-external-validation"
+    assert validation_evidence["canonical_target"]["target_format"] == "canonical-mathml"
+    assert validation_evidence["canonical_target"]["contract_status"] == "implemented-basic"
     assert validation_evidence["artifacts"]["manifest"]["formula_count"] == 1
     assert validation_evidence["artifacts"]["normalization_summary"]["normalized_count"] == 1
+    assert validation_evidence["artifacts"]["canonicalization_summary"]["canonical_mathml_count"] == 1
     assert validation_evidence["artifacts"]["package_metadata"]["provider"] == "omml"
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_present"] is True
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_docx"] == str(validation_target_path)
@@ -104,6 +121,7 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
     assert {item["id"] for item in validation_evidence["evidence_checks"]} >= {
         "manifest-present",
         "normalization-summary-present",
+        "canonicalization-summary-present",
         "package-metadata-present",
         "validation-target-present",
         "validation-plan-present",
@@ -116,7 +134,7 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
         for item in validation_evidence["evidence_checks"]
     )
 
-    validation_plan_path = Path(reports[2].output_paths[0])
+    validation_plan_path = Path(reports[3].output_paths[0])
     validation_plan = json.loads(validation_plan_path.read_text(encoding="utf-8"))
     assert validation_plan["artifact_type"] == "omml-validation-plan"
     assert validation_plan["status"] == "pending-external-validation"
@@ -140,10 +158,10 @@ def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -
         make_context(tmp_path, input_path),
     )
 
-    render_report = reports[2]
+    render_report = reports[3]
     validation_plan = json.loads(Path(render_report.output_paths[0]).read_text(encoding="utf-8"))
-    validation_target_path = Path(reports[3].output_paths[1])
-    validation_evidence = json.loads(Path(reports[3].output_paths[2]).read_text(encoding="utf-8"))
+    validation_target_path = Path(reports[4].output_paths[1])
+    validation_evidence = json.loads(Path(reports[4].output_paths[2]).read_text(encoding="utf-8"))
 
     assert render_report.status == "review-gated"
     assert render_report.blocking is True

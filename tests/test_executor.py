@@ -154,16 +154,24 @@ def test_build_execution_report_executes_omml_native_slice(tmp_path: Path) -> No
     assert report["steps"][0]["provider"] == "omml"
     assert report["steps"][0]["status"] == "completed-with-skips"
     action_statuses = [item["status"] for item in report["steps"][0]["actions"]]
-    assert action_statuses == ["completed", "completed", "skipped", "completed"]
+    assert action_statuses == ["completed", "completed", "completed", "skipped", "completed"]
+    assert report["steps"][0]["canonical_target"]["target_format"] == "canonical-mathml"
+    assert report["steps"][0]["canonical_target"]["contract_status"] == "implemented-basic"
     manifest_path = Path(report["steps"][0]["actions"][0]["output_paths"][0])
     assert manifest_path.exists()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["formula_count"] == 1
-    package_action = report["steps"][0]["actions"][3]
+    canonical_action = report["steps"][0]["actions"][2]
+    canonical_summary_path = Path(canonical_action["output_paths"][0])
+    canonical_summary = json.loads(canonical_summary_path.read_text(encoding="utf-8"))
+    assert canonical_summary["canonical_mathml_count"] == 1
+    package_action = report["steps"][0]["actions"][4]
     validation_target_path = Path(package_action["output_paths"][1])
     assert validation_target_path.exists()
     validation_evidence_path = Path(package_action["output_paths"][2])
     validation_evidence = json.loads(validation_evidence_path.read_text(encoding="utf-8"))
+    assert validation_evidence["canonical_target"]["target_format"] == "canonical-mathml"
+    assert validation_evidence["artifacts"]["canonicalization_summary"]["canonical_mathml_count"] == 1
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_present"] is True
     assert validation_evidence["artifacts"]["validation_target"]["validation_target_docx"] == str(validation_target_path)
 
@@ -273,6 +281,9 @@ def test_dry_run_registry_covers_all_source_line_providers() -> None:
     providers = {step["provider"] for step in report["steps"]}
     assert providers == {"mathtype", "omml", "equation3", "axmath", "odf"}
     by_provider = {step["provider"]: step for step in report["steps"]}
+    assert by_provider["mathtype"]["canonical_target"]["target_format"] == "canonical-mathml"
+    assert by_provider["equation3"]["canonical_target"]["contract_status"] == "fixture-gated"
+    assert by_provider["axmath"]["canonical_target"]["contract_status"] == "export-gated"
     assert by_provider["equation3"]["actions"][0]["runner"] == "internal-equation3-probe"
     assert by_provider["axmath"]["actions"][0]["runner"] == "axmath-route-gate"
     odf_steps = [step for step in report["steps"] if step["provider"] == "odf"]

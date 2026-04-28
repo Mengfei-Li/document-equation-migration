@@ -162,8 +162,8 @@ dem run-plan .\out\execution-plan.json --dry-run --output .\out\execution-report
 
 `execution-report.json` is a dry-run executor report. In the current milestone:
 
-- `mathtype` and `omml` expose concrete dry-run command bindings
-- other providers remain explicit manual gates until their executor bindings are added
+- source-specific providers expose concrete or explicitly gated dry-run bindings
+- every source-family step includes a `canonical_target` block that names `canonical-mathml` as the shared structured target and records the current gate status for that source line
 
 Run the currently supported execution bindings:
 
@@ -173,16 +173,17 @@ dem run-plan .\out\execution-plan.json --execute --output-dir .\out\execution --
 
 In the current milestone:
 
-- `omml` can execute a native-preserving execution slice that extracts OMML XML fragments, writes a manifest, performs a deterministic packaging pass, and records execution metadata
+- `omml` can execute a native-preserving execution slice that extracts OMML XML fragments, writes a manifest, converts common presentation OMML structures into canonical MathML artifacts, performs a deterministic packaging pass, and records execution metadata
 - `mathtype` is wired to the existing PowerShell/Python document pipeline, but external tools are blocked unless you explicitly pass `--allow-external-tools`; Word validation remains a separate gate
 - `equation3` provides an Equation Editor 3.0 evidence/probe skeleton only; conversion and Word roundtrip stay manual/review gated until fixture coverage is stronger
-- `axmath` is export-assisted and stays behind external export / validation gates; the project does not claim a native static AxMath parser
+- `axmath` is export-assisted and stays behind external export / validation gates; the project does not claim a native static AxMath parser, and canonical MathML evidence must come from reviewed export artifacts or a validated conversion step
 - `odf-native` can execute a native MathML extraction slice from ODF/FODT content, while `libreoffice-transformed` remains a bridge provenance review gate
 - render parity, Word opening, and PDF export are still validation gates; an execution report alone is not proof of deliverable Word output
 
 Execute-mode provider outputs are evidence-oriented:
 
 - each provider output root should contain either `validation-evidence.json` or `blocker-record.json`
+- `validation-evidence.json` and `blocker-record.json` should carry the same `canonical_target` contract used by the execution report
 - `validation-plan.json` can exist as a supporting artifact, but it does not replace the evidence/blocker contract on its own
 - `validation-gated` and `review-gated` statuses mean the slice produced traceable evidence or a review gate, not that deliverable conversion is complete
 

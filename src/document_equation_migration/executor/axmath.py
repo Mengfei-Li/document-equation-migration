@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionAction, ExecutionStep
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
@@ -84,6 +85,7 @@ def _write_export_gate_record(
             "artifact_type": "axmath-export-assisted-blocker-record",
             "provider": step.provider,
             "source_family": step.source_family,
+            "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             "route_kind": step.route_kind,
             "action_id": "export-assisted-conversion",
             "status": "blocked-external-tool" if not context.allow_external_tools else "validation-gated",
@@ -97,13 +99,14 @@ def _write_export_gate_record(
                 "required": True,
                 "kind": "vendor-export-workflow",
                 "description": (
-                    "An approved AxMath/vendor export workflow must emit reviewed MathML or LaTeX artifacts."
+                    "An approved AxMath/vendor export workflow must emit reviewed canonical MathML artifacts, "
+                    "or LaTeX artifacts with a separately validated LaTeX-to-MathML conversion step."
                 ),
                 "allow_external_tools": context.allow_external_tools,
                 "verified_cli_binding": False,
             },
             "required_evidence": [
-                "reviewed MathML or LaTeX export artifact(s)",
+                "reviewed canonical MathML artifact(s), or LaTeX plus validated MathML conversion",
                 "manual semantic review of exported formulas",
                 "render parity check against the source document",
             ],

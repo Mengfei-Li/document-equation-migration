@@ -4,6 +4,7 @@ import json
 import subprocess
 from pathlib import Path
 
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionAction, ExecutionStep
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
@@ -217,6 +218,7 @@ def _write_blocker_record(
         "artifact_type": "mathtype-blocker-record",
         "provider": _PROVIDER_NAME,
         "source_family": _SOURCE_FAMILY,
+        "canonical_target": canonical_mathml_contract_for_source_family(_SOURCE_FAMILY).to_dict(),
         "status": status,
         "reason": reason,
         "required_evidence": list(required_evidence),
@@ -253,6 +255,7 @@ def _write_validation_evidence(
         "artifact_type": "mathtype-validation-evidence",
         "provider": _PROVIDER_NAME,
         "source_family": _SOURCE_FAMILY,
+        "canonical_target": canonical_mathml_contract_for_source_family(_SOURCE_FAMILY).to_dict(),
         "status": executed_report.status,
         "input_path": context.input_path,
         "execution_plan_path": context.execution_plan_path,

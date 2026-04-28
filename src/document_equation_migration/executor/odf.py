@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionAction, ExecutionStep
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
@@ -198,6 +199,7 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
         {
             "artifact_type": "odf-validation-evidence",
             "source_family": step.source_family,
+            "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             "provider": step.provider,
             "route_kind": step.route_kind,
             "next_action": step.next_action,
@@ -238,6 +240,7 @@ def _write_blocker_record(step: ExecutionStep, context: ExecutionContext) -> Pat
         {
             "artifact_type": "odf-blocker-record",
             "source_family": step.source_family,
+            "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             "provider": step.provider,
             "route_kind": step.route_kind,
             "next_action": step.next_action,

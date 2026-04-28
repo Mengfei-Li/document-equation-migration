@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ..execution_plan.model import ExecutionAction, ExecutionPlan, ExecutionStep
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from .model import (
     ActionExecutionReport,
     DryRunActionReport,
@@ -172,6 +173,7 @@ def build_dry_run_execution_report(
                 status=status,
                 actions=action_reports,
                 notes=step_notes,
+                canonical_target=canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             )
         )
 
@@ -252,6 +254,7 @@ def build_execution_report(
                 status=status,
                 actions=action_reports,
                 notes=step_notes,
+                canonical_target=canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             )
         )
 

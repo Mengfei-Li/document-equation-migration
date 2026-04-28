@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionStep
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
@@ -99,6 +100,7 @@ def _write_blocker_record(step: ExecutionStep, context: ExecutionContext) -> Pat
             "artifact_type": "equation3-blocker-record",
             "provider": "equation3",
             "source_family": SOURCE_FAMILY,
+            "canonical_target": canonical_mathml_contract_for_source_family(SOURCE_FAMILY).to_dict(),
             "status": "blocked",
             "blocking": True,
             "supported": False,

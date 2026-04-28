@@ -7,7 +7,9 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..execution_plan.model import ExecutionStep
+from ..omml_to_mathml import omml_fragment_to_mathml
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
 
@@ -100,6 +102,33 @@ def _read_normalization_summary(output_root: Path) -> dict[str, object]:
         "normalization_summary_path": str(summary_path),
         "normalization_summary_present": True,
         "normalized_count": summary.get("normalized_count"),
+        "strategy": summary.get("strategy"),
+    }
+
+
+def _read_canonicalization_summary(output_root: Path) -> dict[str, object]:
+    summary_path = output_root / "canonicalization-summary.json"
+    if not summary_path.exists():
+        return {
+            "canonicalization_summary_path": str(summary_path),
+            "canonicalization_summary_present": False,
+            "canonical_mathml_count": None,
+        }
+
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "canonicalization_summary_path": str(summary_path),
+            "canonicalization_summary_present": False,
+            "canonical_mathml_count": None,
+        }
+
+    return {
+        "canonicalization_summary_path": str(summary_path),
+        "canonicalization_summary_present": True,
+        "canonical_mathml_count": summary.get("canonical_mathml_count"),
+        "unsupported_fragment_count": summary.get("unsupported_fragment_count"),
         "strategy": summary.get("strategy"),
     }
 
@@ -200,6 +229,7 @@ def _write_validation_plan(step: ExecutionStep, context: ExecutionContext, outpu
             "evidence": {
                 "manifest": _read_manifest_summary(output_root),
                 "normalization_summary_path": str(output_root / "normalization-summary.json"),
+                "canonicalization_summary_path": str(output_root / "canonicalization-summary.json"),
                 "package_metadata_path": str(output_root / "package" / "execution-metadata.json"),
                 "validation_target": _read_validation_target_summary(output_root),
             },
@@ -246,11 +276,13 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
     gate_status = "manual-review-required" if step.requires_manual_review else "pending-external-validation"
     manifest_summary = _read_manifest_summary(output_root)
     normalization_summary = _read_normalization_summary(output_root)
+    canonicalization_summary = _read_canonicalization_summary(output_root)
     package_metadata = _read_package_metadata_summary(output_root)
     validation_plan = _read_validation_plan_summary(output_root)
     validation_target = _read_validation_target_summary(output_root)
     formula_count = manifest_summary.get("formula_count")
     normalized_count = normalization_summary.get("normalized_count")
+    canonical_count = canonicalization_summary.get("canonical_mathml_count")
 
     evidence_checks: list[dict[str, object]] = [
         {
@@ -260,6 +292,10 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
         {
             "id": "normalization-summary-present",
             "status": "passed" if normalization_summary["normalization_summary_present"] else "missing",
+        },
+        {
+            "id": "canonicalization-summary-present",
+            "status": "passed" if canonicalization_summary["canonicalization_summary_present"] else "missing",
         },
         {
             "id": "package-metadata-present",
@@ -300,6 +336,16 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
                 "normalized_count": normalized_count,
             },
         )
+    if isinstance(formula_count, int) and isinstance(canonical_count, int):
+        evidence_checks.insert(
+            5,
+            {
+                "id": "formula-count-vs-canonical-mathml-count",
+                "status": "passed" if formula_count == canonical_count else "mismatch",
+                "manifest_formula_count": formula_count,
+                "canonical_mathml_count": canonical_count,
+            },
+        )
 
     _write_json(
         validation_evidence_path,
@@ -314,9 +360,11 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
             "input_path": context.input_path,
             "execution_plan_path": context.execution_plan_path,
             "output_root": str(output_root),
+            "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
             "artifacts": {
                 "manifest": manifest_summary,
                 "normalization_summary": normalization_summary,
+                "canonicalization_summary": canonicalization_summary,
                 "package_metadata": package_metadata,
                 "validation_target": validation_target,
                 "validation_plan": validation_plan,
@@ -324,6 +372,7 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
             "evidence_checks": evidence_checks,
             "observations": [
                 "Manifest, normalization, package and validation-plan artifacts were collected locally.",
+                "Canonical MathML artifacts are the structured target for downstream pipelines.",
                 "Validation target DOCX is packaged for the shared DOCX deliverability workflow.",
                 "This evidence does not claim Microsoft Word or PDF validation completed.",
                 "Word and PDF checks remain external/manual validation gates.",
@@ -409,6 +458,37 @@ def _normalize_omml_fragments(output_root: Path) -> tuple[Path, tuple[Path, ...]
     return summary_path, tuple(normalized_paths)
 
 
+def _canonicalize_omml_fragments(output_root: Path) -> tuple[Path, tuple[Path, ...]]:
+    normalized_dir = output_root / "normalized"
+    canonical_dir = output_root / "canonical-mathml"
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+    canonical_paths: list[Path] = []
+    unsupported_count = 0
+
+    for source_path in sorted(normalized_dir.glob("*.xml")):
+        target_path = canonical_dir / source_path.name
+        mathml_text = omml_fragment_to_mathml(source_path.read_text(encoding="utf-8"))
+        if "data-omml-unsupported=" in mathml_text:
+            unsupported_count += 1
+        target_path.write_text(
+            f'<?xml version="1.0" encoding="UTF-8"?>\n{mathml_text}\n',
+            encoding="utf-8",
+        )
+        canonical_paths.append(target_path)
+
+    summary_path = output_root / "canonicalization-summary.json"
+    _write_json(
+        summary_path,
+        {
+            "strategy": "internal-basic-omml-to-presentation-mathml",
+            "canonical_mathml_count": len(canonical_paths),
+            "unsupported_fragment_count": unsupported_count,
+            "items": [str(path) for path in canonical_paths],
+        },
+    )
+    return summary_path, tuple(canonical_paths)
+
+
 def _package_omml_output(step: ExecutionStep, context: ExecutionContext, output_root: Path) -> Path:
     package_root = output_root / "package"
     package_root.mkdir(parents=True, exist_ok=True)
@@ -425,6 +505,8 @@ def _package_omml_output(step: ExecutionStep, context: ExecutionContext, output_
             "output_root": str(output_root),
             "manifest_path": str(output_root / "manifest.json"),
             "normalization_summary_path": str(output_root / "normalization-summary.json"),
+            "canonicalization_summary_path": str(output_root / "canonicalization-summary.json"),
+            "canonical_mathml_dir": str(output_root / "canonical-mathml"),
             "validation_target_docx": str(validation_target_path),
             "validation_plan_path": str(output_root / "validation" / "validation-plan.json"),
             "validation_evidence_path": str(output_root / "validation" / "validation-evidence.json"),
@@ -534,6 +616,37 @@ def _build_render_check_report(
     )
 
 
+def _build_canonical_mathml_report(
+    step: ExecutionStep,
+    action_id: str,
+    description: str,
+    context: DryRunContext,
+) -> DryRunActionReport:
+    output_root = _output_root(context)
+    return DryRunActionReport(
+        action_id=action_id,
+        description=description,
+        blocking=False,
+        supported=True,
+        status="ready",
+        runner="internal-omml-to-mathml",
+        argv=(
+            "canonicalize",
+            "--input-dir",
+            str(output_root / "normalized"),
+            "--output-dir",
+            str(output_root / "canonical-mathml"),
+            "--profile",
+            "basic-presentation-mathml",
+        ),
+        cwd=context.workspace_root,
+        notes=(
+            "Converts normalized OMML fragments into canonical MathML artifacts for downstream pipelines.",
+            "Unsupported OMML structures are preserved as review-marked MathML rows rather than silently dropped.",
+        ),
+    )
+
+
 def _build_package_report(
     step: ExecutionStep,
     action_id: str,
@@ -595,6 +708,7 @@ def build_omml_dry_run_reports(
     builders = {
         "extract-omml": _build_extract_report,
         "normalize-omml": _build_normalize_report,
+        "omml-to-canonical-mathml": _build_canonical_mathml_report,
         "render-check": _build_render_check_report,
         "package-omml-output": _build_package_report,
     }
@@ -646,6 +760,7 @@ def execute_omml_step(
     input_path = Path(context.input_path)
     reports: list[ActionExecutionReport] = []
     extract_succeeded = False
+    normalization_succeeded = False
 
     for action in step.actions:
         action_id = action.action_id
@@ -711,6 +826,7 @@ def execute_omml_step(
                 )
                 continue
             summary_path, normalized_paths = _normalize_omml_fragments(output_root)
+            normalization_succeeded = True
             reports.append(
                 _execution_report(
                     action_id=action_id,
@@ -723,6 +839,38 @@ def execute_omml_step(
                     notes=(
                         "Current normalization is a native-preserving packaging pass.",
                         f"Normalized artifact count: {len(normalized_paths)}.",
+                    ),
+                )
+            )
+            continue
+
+        if action_id == "omml-to-canonical-mathml":
+            if not normalization_succeeded:
+                reports.append(
+                    _execution_report(
+                        action_id=action_id,
+                        description=action.description,
+                        blocking=action.blocking,
+                        status="skipped-after-failure",
+                        runner="internal-omml-to-mathml",
+                        context=context,
+                        notes=("OMML normalization did not complete, so canonical MathML conversion was skipped.",),
+                    )
+                )
+                continue
+            summary_path, canonical_paths = _canonicalize_omml_fragments(output_root)
+            reports.append(
+                _execution_report(
+                    action_id=action_id,
+                    description=action.description,
+                    blocking=action.blocking,
+                    status="completed",
+                    runner="internal-omml-to-mathml",
+                    context=context,
+                    output_paths=(summary_path, *canonical_paths),
+                    notes=(
+                        "Converted normalized OMML fragments to canonical MathML artifacts.",
+                        f"Canonical MathML artifact count: {len(canonical_paths)}.",
                     ),
                 )
             )
