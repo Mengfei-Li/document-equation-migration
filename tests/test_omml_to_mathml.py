@@ -27,6 +27,29 @@ def test_omml_fraction_converts_to_mathml_fraction() -> None:
     assert "<math:mn>2</math:mn>" in mathml
 
 
+def test_omml_fraction_type_properties_are_preserved() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:f>
+        <m:fPr><m:type m:val="noBar" /></m:fPr>
+        <m:num><m:r><m:t>a</m:t></m:r></m:num>
+        <m:den><m:r><m:t>b</m:t></m:r></m:den>
+      </m:f>
+      <m:f>
+        <m:fPr><m:type m:val="skw" /></m:fPr>
+        <m:num><m:r><m:t>1</m:t></m:r></m:num>
+        <m:den><m:r><m:t>2</m:t></m:r></m:den>
+      </m:f>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert 'data-omml-frac-type="noBar"' in mathml
+    assert 'linethickness="0"' in mathml
+    assert 'data-omml-frac-type="skw"' in mathml
+    assert 'bevelled="true"' in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
 def test_omml_scripts_convert_to_mathml_scripts() -> None:
     payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
       <m:sSubSup>
@@ -81,6 +104,7 @@ def test_omml_delimiter_converts_to_mathml_fenced() -> None:
         <m:dPr>
           <m:begChr m:val="[" />
           <m:endChr m:val="]" />
+          <m:sepChr m:val=";" />
         </m:dPr>
         <m:e><m:r><m:t>x</m:t></m:r></m:e>
       </m:d>
@@ -88,7 +112,7 @@ def test_omml_delimiter_converts_to_mathml_fenced() -> None:
 
     mathml = omml_fragment_to_mathml(payload)
 
-    assert '<math:mfenced open="[" close="]">' in mathml
+    assert '<math:mfenced open="[" close="]" separators=";">' in mathml
     assert "<math:mi>x</math:mi>" in mathml
     assert "data-omml-unsupported" not in mathml
 
@@ -96,7 +120,7 @@ def test_omml_delimiter_converts_to_mathml_fenced() -> None:
 def test_omml_nary_converts_to_mathml_under_over_operator() -> None:
     payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
       <m:nary>
-        <m:naryPr><m:chr m:val="&#x2211;" /></m:naryPr>
+        <m:naryPr><m:chr m:val="&#x2211;" /><m:limLoc m:val="subSup" /></m:naryPr>
         <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
         <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
         <m:e><m:r><m:t>x</m:t></m:r></m:e>
@@ -106,7 +130,7 @@ def test_omml_nary_converts_to_mathml_under_over_operator() -> None:
     mathml = omml_fragment_to_mathml(payload)
 
     assert "<math:munderover>" in mathml
-    assert f"<math:mo>{chr(0x2211)}</math:mo>" in mathml
+    assert f'<math:mo data-omml-limLoc="subSup" movablelimits="true">{chr(0x2211)}</math:mo>' in mathml
     assert "<math:mi>i</math:mi>" in mathml
     assert "<math:mi>n</math:mi>" in mathml
     assert "<math:mi>x</math:mi>" in mathml
@@ -153,10 +177,26 @@ def test_omml_accent_and_bar_convert_to_mathml_overscripts() -> None:
 
     assert '<math:mover accent="true">' in mathml
     assert "<math:mo>~</math:mo>" in mathml
-    assert "<math:mover>" in mathml
+    assert mathml.count('<math:mover accent="true">') == 2
     assert f"<math:mo>{chr(0x00AF)}</math:mo>" in mathml
     assert "<math:mi>x</math:mi>" in mathml
     assert "<math:mi>y</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_bottom_bar_preserves_accentunder() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:bar>
+        <m:barPr><m:pos m:val="bot" /></m:barPr>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:bar>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert '<math:munder accentunder="true">' in mathml
+    assert f"<math:mo>{chr(0x00AF)}</math:mo>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
     assert "data-omml-unsupported" not in mathml
 
 

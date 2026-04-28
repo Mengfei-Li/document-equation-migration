@@ -32,6 +32,24 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
     </w:p>
     <w:p>
       <m:oMath>
+        <m:f>
+          <m:fPr><m:type m:val="noBar" /></m:fPr>
+          <m:num><m:r><m:t>a</m:t></m:r></m:num>
+          <m:den><m:r><m:t>b</m:t></m:r></m:den>
+        </m:f>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:f>
+          <m:fPr><m:type m:val="skw" /></m:fPr>
+          <m:num><m:r><m:t>1</m:t></m:r></m:num>
+          <m:den><m:r><m:t>2</m:t></m:r></m:den>
+        </m:f>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
         <m:sSup>
           <m:e><m:r><m:t>x</m:t></m:r></m:e>
           <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
@@ -57,6 +75,7 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
           <m:dPr>
             <m:begChr m:val="(" />
             <m:endChr m:val=")" />
+            <m:sepChr m:val=";" />
           </m:dPr>
           <m:e><m:r><m:t>z</m:t></m:r></m:e>
         </m:d>
@@ -65,7 +84,7 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
     <w:p>
       <m:oMath>
         <m:nary>
-          <m:naryPr><m:chr m:val="&#x2211;" /></m:naryPr>
+          <m:naryPr><m:chr m:val="&#x2211;" /><m:limLoc m:val="subSup" /></m:naryPr>
           <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
           <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
           <m:e><m:r><m:t>a</m:t></m:r></m:e>
@@ -107,6 +126,14 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
         <m:bar>
           <m:barPr><m:pos m:val="top" /></m:barPr>
           <m:e><m:r><m:t>y</m:t></m:r></m:e>
+        </m:bar>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:bar>
+          <m:barPr><m:pos m:val="bot" /></m:barPr>
+          <m:e><m:r><m:t>u</m:t></m:r></m:e>
         </m:bar>
       </m:oMath>
     </w:p>
@@ -319,8 +346,8 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
 
     manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
     canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
-    assert manifest["formula_count"] == 19
-    assert canonical_summary["canonical_mathml_count"] == 19
+    assert manifest["formula_count"] == 22
+    assert canonical_summary["canonical_mathml_count"] == 22
     assert canonical_summary["unsupported_fragment_count"] == 0
 
     canonical_text = "\n".join(
@@ -328,14 +355,22 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
         for path in reports[2].output_paths[1:]
     )
     assert "<math:mfrac>" in canonical_text
+    assert 'data-omml-frac-type="noBar"' in canonical_text
+    assert 'linethickness="0"' in canonical_text
+    assert 'data-omml-frac-type="skw"' in canonical_text
+    assert 'bevelled="true"' in canonical_text
     assert "<math:msup>" in canonical_text
     assert "<math:msub>" in canonical_text
     assert "<math:msqrt>" in canonical_text
     assert "<math:mfenced" in canonical_text
+    assert 'separators=";"' in canonical_text
     assert "<math:munderover>" in canonical_text
+    assert 'data-omml-limLoc="subSup"' in canonical_text
+    assert 'movablelimits="true"' in canonical_text
     assert "<math:mtable>" in canonical_text
     assert '<math:mover accent="true">' in canonical_text
     assert f"<math:mo>{chr(0x00AF)}</math:mo>" in canonical_text
+    assert '<math:munder accentunder="true">' in canonical_text
     assert f"<math:mo>{chr(0x2061)}</math:mo>" in canonical_text
     assert "<math:munder>" in canonical_text
     assert f"<math:mo>{chr(0x23DE)}</math:mo>" in canonical_text

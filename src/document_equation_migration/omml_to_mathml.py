@@ -88,13 +88,24 @@ def _convert_run(element: ET.Element) -> ET.Element | None:
 
 
 def _convert_fraction(element: ET.Element) -> ET.Element:
-    return _mml(
+    fraction = _mml(
         "mfrac",
         children=[
             _converted_child(element, "num"),
             _converted_child(element, "den"),
         ],
     )
+    fraction_properties = _first_child(element, "fPr")
+    fraction_type = "bar"
+    if fraction_properties is not None:
+        fraction_type = _omml_property_value(fraction_properties, "type", "bar")
+    if fraction_type != "bar":
+        fraction.set("data-omml-frac-type", fraction_type)
+    if fraction_type == "noBar":
+        fraction.set("linethickness", "0")
+    elif fraction_type == "skw":
+        fraction.set("bevelled", "true")
+    return fraction
 
 
 def _convert_script(element: ET.Element, tag: str) -> ET.Element:
@@ -129,6 +140,7 @@ def _convert_delimiter(element: ET.Element) -> ET.Element:
         return fenced
     begin = delimiter_properties.find(f".//{{{OMML_NAMESPACE}}}begChr")
     end = delimiter_properties.find(f".//{{{OMML_NAMESPACE}}}endChr")
+    separator = delimiter_properties.find(f".//{{{OMML_NAMESPACE}}}sepChr")
     if begin is not None:
         value = begin.attrib.get(f"{{{OMML_NAMESPACE}}}val")
         if value:
@@ -137,17 +149,30 @@ def _convert_delimiter(element: ET.Element) -> ET.Element:
         value = end.attrib.get(f"{{{OMML_NAMESPACE}}}val")
         if value:
             fenced.set("close", value)
+    if separator is not None:
+        value = separator.attrib.get(f"{{{OMML_NAMESPACE}}}val")
+        if value:
+            fenced.set("separators", value)
     return fenced
 
 
 def _convert_nary(element: ET.Element) -> ET.Element:
     nary_properties = _first_child(element, "naryPr")
     operator = "\u2211"
+    limit_location = ""
     if nary_properties is not None:
         chr_node = nary_properties.find(f".//{{{OMML_NAMESPACE}}}chr")
         if chr_node is not None:
             operator = chr_node.attrib.get(f"{{{OMML_NAMESPACE}}}val", operator)
-    children = [_mml("mo", operator)]
+        limit_location = _omml_property_value(nary_properties, "limLoc", "")
+    operator_node = _mml("mo", operator)
+    if limit_location:
+        operator_node.set("data-omml-limLoc", limit_location)
+        if limit_location == "subSup":
+            operator_node.set("movablelimits", "true")
+        elif limit_location == "undOvr":
+            operator_node.set("movablelimits", "false")
+    children = [operator_node]
     sub = _first_child(element, "sub")
     sup = _first_child(element, "sup")
     expression = _first_child(element, "e")
@@ -240,8 +265,12 @@ def _convert_bar(element: ET.Element) -> ET.Element:
     base = _converted_child(element, "e")
     position = _omml_property_value(element, "pos", "top")
     if position == "bot":
-        return _mml("munder", children=[base, _mml("mo", operator)])
-    return _mml("mover", children=[base, _mml("mo", operator)])
+        munder = _mml("munder", children=[base, _mml("mo", operator)])
+        munder.set("accentunder", "true")
+        return munder
+    mover = _mml("mover", children=[base, _mml("mo", operator)])
+    mover.set("accent", "true")
+    return mover
 
 
 def _convert_function(element: ET.Element) -> ET.Element:
