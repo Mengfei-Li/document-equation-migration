@@ -3,6 +3,7 @@ from pathlib import Path
 
 from document_equation_migration.execution_plan.axmath import build_axmath_execution_step
 from document_equation_migration.executor.axmath import (
+    axmath_export_admissibility_requirements,
     build_axmath_dry_run_reports,
     execute_axmath_step,
 )
@@ -47,6 +48,7 @@ def test_build_axmath_dry_run_reports_describes_export_gate(tmp_path: Path) -> N
     assert reports[3].status == "review-gated"
     assert any("No native AxMath static parser" in note for note in reports[0].notes)
     assert any("export-assisted" in note for note in reports[1].notes)
+    assert any("export admissibility checklist" in note for note in reports[1].notes)
 
 
 def test_execute_axmath_step_blocks_external_export_by_default(tmp_path: Path) -> None:
@@ -75,6 +77,24 @@ def test_execute_axmath_step_blocks_external_export_by_default(tmp_path: Path) -
     assert gate["status"] == "blocked-external-tool"
     assert gate["external_export_dependency"]["required"] is True
     assert gate["external_export_dependency"]["allow_external_tools"] is False
+    assert gate["export_admissibility"]["target_stage"] == "export-to-canonical-mathml"
+    assert {item["id"] for item in gate["export_admissibility"]["accepted_export_channels"]} == {
+        "direct-mathml",
+        "latex-plus-validated-converter",
+    }
+    required_property_ids = {
+        item["id"] for item in gate["export_admissibility"]["required_candidate_properties"]
+    }
+    assert required_property_ids == {
+        "axmath-identity",
+        "export-provenance",
+        "canonical-output",
+        "semantic-review",
+    }
+    assert "native static parser claim without verified parser binding" in gate["export_admissibility"][
+        "disqualifying_conditions"
+    ]
+    assert any("Canonical MathML output validates" in item for item in gate["export_admissibility"]["promotion_gate"])
     assert "allow-external-tools" in gate["next_ready_condition"]
     assert "reviewed MathML or LaTeX" in gate["next_ready_condition"]
     assert any("external vendor/export workflow" in note for note in reports[1].notes)
@@ -105,5 +125,21 @@ def test_execute_axmath_step_stays_validation_gated_when_external_tools_are_allo
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     assert gate["status"] == "validation-gated"
     assert gate["external_export_dependency"]["allow_external_tools"] is True
+    assert gate["export_admissibility"]["target_stage"] == "export-to-canonical-mathml"
     assert "verified AxMath/vendor export workflow" in gate["next_ready_condition"]
     assert any("no verified AxMath CLI binding" in note for note in reports[1].notes)
+    assert any("export admissibility requirements" in note for note in reports[1].notes)
+
+
+def test_axmath_export_admissibility_keeps_native_parser_claim_disallowed() -> None:
+    requirements = axmath_export_admissibility_requirements()
+
+    assert requirements["target_stage"] == "export-to-canonical-mathml"
+    assert "reviewed AxMath export batch" in requirements["minimum_export_set"]
+    assert "native static parser claim without verified parser binding" in requirements[
+        "disqualifying_conditions"
+    ]
+    assert "LaTeX export without a validated LaTeX-to-MathML step" in requirements[
+        "disqualifying_conditions"
+    ]
+    assert any("Manual semantic review" in item for item in requirements["promotion_gate"])

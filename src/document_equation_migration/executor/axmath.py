@@ -13,6 +13,96 @@ AXMATH_OUTPUT_DIR = "axmath-export-assisted"
 _INPUT_DOCX_PLACEHOLDER = "<input-docx-from-plan>"
 
 
+def axmath_export_admissibility_requirements() -> dict[str, object]:
+    return {
+        "target_stage": "export-to-canonical-mathml",
+        "minimum_export_set": (
+            "At least one reviewed AxMath export batch that maps detected axmath-ole formulas to "
+            "canonical MathML artifacts, either directly from MathML export or through a separately "
+            "validated LaTeX-to-MathML step."
+        ),
+        "accepted_export_channels": [
+            {
+                "id": "direct-mathml",
+                "description": "AxMath or an approved vendor workflow exports MathML that can be normalized to canonical MathML.",
+                "required_evidence": [
+                    "raw exported MathML artifact",
+                    "canonical MathML artifact",
+                    "XML parse success",
+                    "formula-count parity",
+                ],
+            },
+            {
+                "id": "latex-plus-validated-converter",
+                "description": "AxMath exports LaTeX and a separately validated converter produces canonical MathML.",
+                "required_evidence": [
+                    "raw exported LaTeX artifact",
+                    "documented LaTeX-to-MathML converter identity and version",
+                    "canonical MathML artifact",
+                    "semantic review against source AxMath object",
+                ],
+            },
+        ],
+        "required_candidate_properties": [
+            {
+                "id": "axmath-identity",
+                "description": "The source formula is classified as AxMath OLE.",
+                "evidence_fields": (
+                    "source_family=axmath-ole",
+                    "provenance.prog_id_raw=Equation.AxMath or field_code_raw contains EMBED Equation.AxMath",
+                    "axmath.word_addin_artifacts",
+                ),
+            },
+            {
+                "id": "export-provenance",
+                "description": "Each exported artifact is traceable to a detected AxMath source object.",
+                "evidence_fields": (
+                    "formula_id",
+                    "doc_part_path",
+                    "relationship_id",
+                    "embedding_target",
+                    "raw_payload_sha256",
+                ),
+            },
+            {
+                "id": "canonical-output",
+                "description": "The reviewed export path emits canonical MathML artifacts with formula-count parity.",
+                "evidence_fields": (
+                    "canonical-mathml/*.xml",
+                    "canonicalization-summary.json",
+                    "canonical_mathml_count equals reviewed export formula count",
+                    "unsupported_fragment_count recorded",
+                ),
+            },
+            {
+                "id": "semantic-review",
+                "description": "A human or deterministic review confirms exported semantics against source AxMath objects.",
+                "evidence_fields": (
+                    "reviewed-export-report.json",
+                    "semantic_review_status",
+                    "review_notes",
+                ),
+            },
+        ],
+        "disqualifying_conditions": [
+            "native static parser claim without verified parser binding",
+            "unreviewed export artifacts",
+            "export batch without source formula provenance",
+            "LaTeX export without a validated LaTeX-to-MathML step",
+            "formula-count mismatch between AxMath detections and accepted canonical artifacts",
+            "custom symbols or vendor macros without documented semantic handling",
+            "unclear permission for publishing source or exported fixture artifacts",
+        ],
+        "promotion_gate": [
+            "Detector evidence proves AxMath source identity.",
+            "Export artifacts are reviewed and linked to source formula provenance.",
+            "Canonical MathML output validates as XML and preserves formula count.",
+            "Any LaTeX route identifies and validates its LaTeX-to-MathML converter.",
+            "Manual semantic review is recorded before delivery claims.",
+        ],
+    }
+
+
 def _workspace_root(context: DryRunContext | ExecutionContext) -> Path:
     return Path(context.workspace_root)
 
@@ -105,6 +195,7 @@ def _write_export_gate_record(
                 "allow_external_tools": context.allow_external_tools,
                 "verified_cli_binding": False,
             },
+            "export_admissibility": axmath_export_admissibility_requirements(),
             "required_evidence": [
                 "reviewed canonical MathML artifact(s), or LaTeX plus validated MathML conversion",
                 "manual semantic review of exported formulas",
@@ -153,6 +244,7 @@ def _export_dry_run_report(
         notes=(
             "AxMath conversion is export-assisted: an approved AxMath/vendor export workflow must create MathML or LaTeX artifacts.",
             "No command is registered because this provider does not have a verified native static parser or CLI binding.",
+            "Next stage requires reviewed export artifacts that satisfy the blocker-record export admissibility checklist.",
             f"Input document for the export gate: {input_docx}",
             f"Expected reviewed export artifact root: {output_root}",
         ),
@@ -173,6 +265,7 @@ def _import_dry_run_report(action: ExecutionAction, context: DryRunContext) -> D
             "Import is blocked until reviewed AxMath export artifacts exist.",
             f"Expected reviewed export artifact root: {output_root}",
             "The provider does not synthesize converted math from AxMath OLE payloads directly.",
+            "Use the blocker-record export admissibility checklist before accepting canonical MathML artifacts.",
         ),
     )
 
@@ -310,6 +403,7 @@ def execute_axmath_step(
                         notes=(
                             "External tools are allowed by the execution context, but no verified AxMath CLI binding is registered.",
                             "Run an approved AxMath export workflow and record reviewed MathML/LaTeX artifacts before import.",
+                            "The blocker record lists export admissibility requirements for canonical MathML promotion.",
                             f"Expected reviewed export artifact root: {output_root}",
                         ),
                     )
@@ -327,6 +421,7 @@ def execute_axmath_step(
                         "AxMath execution requires an external vendor/export workflow and is blocked unless explicitly allowed.",
                         "Use --allow-external-tools only after the AxMath export environment and review workflow are prepared.",
                         "This provider does not claim native static parsing support.",
+                        "The blocker record lists export admissibility requirements for canonical MathML promotion.",
                     ),
                 )
             )
