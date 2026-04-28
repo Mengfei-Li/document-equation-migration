@@ -15,6 +15,107 @@ _SOURCE_FAMILY = "mathtype-ole"
 _DEFAULT_LAYOUT_FACTOR = 1.01375
 
 
+def mathtype_canonical_artifact_requirements() -> dict[str, object]:
+    return {
+        "target_stage": "equation-native-mtef-to-canonical-mathml",
+        "minimum_artifact_set": (
+            "At least one MathType OLE source object with extracted Equation Native / MTEF evidence, "
+            "converter-emitted MathML, accepted canonical MathML, formula-count parity, and source-to-artifact provenance."
+        ),
+        "accepted_artifact_sets": [
+            {
+                "id": "normalized-mathml-promoted-to-canonical",
+                "description": (
+                    "The MathType converter emits MathML that is normalized and accepted as canonical MathML "
+                    "with explicit summary and provenance records."
+                ),
+                "required_evidence": [
+                    "raw Equation Native / MTEF payload artifact or digest",
+                    "converted/*.mml or converted/*.mathml",
+                    "canonical-mathml/*.xml",
+                    "canonicalization-summary.json",
+                    "validation-evidence.json",
+                    "source-to-canonical provenance map",
+                ],
+            },
+            {
+                "id": "converter-native-control",
+                "description": (
+                    "A controlled converter-native fixture demonstrates the external MathType toolchain and "
+                    "produces canonical MathML evidence before any downstream OMML / Word route is considered."
+                ),
+                "required_evidence": [
+                    "fixture source attribution or permission tier",
+                    "raw payload SHA-256",
+                    "converter stdout/stderr logs",
+                    "canonical MathML XML parse success",
+                    "formula-count parity",
+                ],
+            },
+        ],
+        "required_candidate_properties": [
+            {
+                "id": "mathtype-identity",
+                "description": "The source formula is classified as MathType OLE.",
+                "evidence_fields": (
+                    "source_family=mathtype-ole",
+                    "provenance.prog_id_raw=Equation.DSMT* or field_code_raw contains EMBED Equation.DSMT",
+                    "source_specific.mathtype.class_id_raw",
+                ),
+            },
+            {
+                "id": "equation-native-payload",
+                "description": "Each source formula exposes real Equation Native / MTEF payload evidence.",
+                "evidence_fields": (
+                    "source_role=native-source",
+                    "provenance.raw_payload_status=present",
+                    "provenance.raw_payload_sha256",
+                    "provenance.payload_stream_name",
+                    "mtef_version",
+                ),
+            },
+            {
+                "id": "canonical-output",
+                "description": "Accepted output is canonical MathML, not only OMML or Word-rendered output.",
+                "evidence_fields": (
+                    "canonical-mathml/*.xml",
+                    "canonicalization-summary.json",
+                    "canonical_mathml_count equals accepted source formula count",
+                    "unsupported_fragment_count recorded",
+                ),
+            },
+            {
+                "id": "provenance-map",
+                "description": "Every canonical MathML artifact remains traceable to the original DOCX object.",
+                "evidence_fields": (
+                    "formula_id",
+                    "doc_part_path",
+                    "relationship_id",
+                    "embedding_target",
+                    "raw_payload_sha256",
+                    "canonical_artifact_path",
+                ),
+            },
+        ],
+        "disqualifying_conditions": [
+            "marker-text payload instead of binary Equation Native / MTEF payload",
+            "preview-only image without native payload",
+            "empty, BOM-only, or XML-invalid converter output",
+            "Word-only OMML output without accepted canonical MathML artifacts",
+            "formula-count mismatch between detected MathType sources and accepted canonical artifacts",
+            "missing source-to-artifact provenance",
+            "unclear redistribution or use permission for public fixture promotion",
+        ],
+        "promotion_gate": [
+            "Detector evidence proves MathType OLE source identity.",
+            "External tool prerequisites are recorded before live conversion.",
+            "Canonical MathML artifacts validate as XML and preserve formula count.",
+            "Each accepted artifact has source provenance and raw-payload digest evidence.",
+            "Downstream OMML / Word validation is attempted only after the canonical artifact gate passes.",
+        ],
+    }
+
+
 def _workspace_root(context: DryRunContext) -> Path:
     return Path(context.workspace_root)
 
@@ -176,6 +277,13 @@ def _resume_option_notes(step: ExecutionStep) -> tuple[str, ...]:
     )
 
 
+def _canonical_artifact_notes() -> tuple[str, ...]:
+    return (
+        "Structured-core acceptance requires canonical MathML artifacts, formula-count parity, and source-to-artifact provenance.",
+        "OMML replacement and Word export are downstream validation surfaces, not the canonical target itself.",
+    )
+
+
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -220,9 +328,12 @@ def _write_blocker_record(
         "source_family": _SOURCE_FAMILY,
         "canonical_target": canonical_mathml_contract_for_source_family(_SOURCE_FAMILY).to_dict(),
         "status": status,
+        "gate_state": status,
+        "conversion_claim": False,
         "reason": reason,
         "required_evidence": list(required_evidence),
         "next_ready_condition": next_ready_condition,
+        "canonical_artifact_admissibility": mathtype_canonical_artifact_requirements(),
         "input_path": context.input_path,
         "execution_plan_path": context.execution_plan_path,
         "output_root": str(output_root),
@@ -276,7 +387,14 @@ def _write_validation_evidence(
             "status": "validation-gated",
             "artifact_path": str(blocker_path),
         },
-        "next_ready_condition": "Capture Word open/export parity and update the blocker record before treating output as deliverable.",
+        "canonical_artifact_gate": {
+            "status": "review-gated",
+            "conversion_claim": False,
+            "admissibility": mathtype_canonical_artifact_requirements(),
+        },
+        "next_ready_condition": (
+            "Accept canonical MathML artifacts with provenance before treating downstream OMML / Word output as deliverable."
+        ),
     }
     return _write_json(evidence_path, payload)
 
@@ -412,6 +530,7 @@ def build_mathtype_dry_run_reports(
                         "This action drives the MathType Java bridge through probe_formula_pipeline.ps1.",
                         f"MathML outputs are expected under {converted_dir}.",
                         shared_probe_note,
+                        *_canonical_artifact_notes(),
                         *_manual_review_note(step),
                     ),
                 )
@@ -437,6 +556,7 @@ def build_mathtype_dry_run_reports(
                         "normalize_mathml.py is invoked inside probe_formula_pipeline.ps1 immediately after MathML emission.",
                         "This dry-run reuses the same staged probe command rather than inventing a second wrapper.",
                         shared_probe_note,
+                        *_canonical_artifact_notes(),
                         *_manual_review_note(step),
                     ),
                 )
@@ -461,6 +581,7 @@ def build_mathtype_dry_run_reports(
                     notes=(
                         "MML2OMML.XSL is applied inside probe_formula_pipeline.ps1 after MathML normalization.",
                         "This step shares the same command preview as the preceding probe stages by design.",
+                        "This downstream OMML step does not by itself satisfy the canonical MathML artifact gate.",
                         shared_probe_note,
                         *_manual_review_note(step),
                     ),

@@ -65,12 +65,16 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
         expected_artifacts=(
             "converted/*.mml",
             "converted/*.mathml",
+            "canonical-mathml/*.xml",
+            "canonicalization-summary.json",
             "validation-evidence.json",
         ),
         required_evidence=(
             "Equation Native / MTEF payload extraction evidence",
             "MathType-to-MathML converter output",
             "normalize_mathml.py post-processing result",
+            "formula-count parity between source objects and accepted canonical MathML artifacts",
+            "provenance from every source MathType object to each accepted canonical MathML artifact",
         ),
         notes=(
             "The route is real, but live execution remains guarded by external Java and converter prerequisites.",

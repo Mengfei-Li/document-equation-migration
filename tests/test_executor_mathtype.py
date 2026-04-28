@@ -6,6 +6,7 @@ from document_equation_migration.execution_plan.model import ExecutionAction, Ex
 from document_equation_migration.executor.mathtype import (
     build_mathtype_dry_run_reports,
     execute_mathtype_step,
+    mathtype_canonical_artifact_requirements,
 )
 from document_equation_migration.executor.model import DryRunContext, ExecutionContext
 
@@ -63,6 +64,20 @@ def make_plan(path: Path) -> None:
     )
 
 
+def test_mathtype_canonical_artifact_requirements_are_structured() -> None:
+    requirements = mathtype_canonical_artifact_requirements()
+
+    assert requirements["target_stage"] == "equation-native-mtef-to-canonical-mathml"
+    accepted_sets = {item["id"]: item for item in requirements["accepted_artifact_sets"]}
+    assert "normalized-mathml-promoted-to-canonical" in accepted_sets
+    assert "converter-native-control" in accepted_sets
+    normalized = accepted_sets["normalized-mathml-promoted-to-canonical"]
+    assert "canonical-mathml/*.xml" in normalized["required_evidence"]
+    assert "canonicalization-summary.json" in normalized["required_evidence"]
+    assert "Word-only OMML output without accepted canonical MathML artifacts" in requirements["disqualifying_conditions"]
+    assert any("provenance" in item for item in requirements["promotion_gate"])
+
+
 def test_mathtype_dry_run_preserves_document_pipeline_preview(tmp_path: Path) -> None:
     plan_path = tmp_path / "execution-plan.json"
     make_plan(plan_path)
@@ -92,6 +107,8 @@ def test_mathtype_dry_run_preserves_document_pipeline_preview(tmp_path: Path) ->
     assert str(tmp_path / "fixtures" / "sample.docx") in command_line
     assert str(tmp_path / "out" / "sample.omml.docx") in command_line
     assert "document-level pipeline wrapper" in " ".join(reports[0].notes)
+    assert "canonical MathML artifacts" in " ".join(reports[1].notes)
+    assert "does not by itself satisfy the canonical MathML artifact gate" in " ".join(reports[3].notes)
 
 
 def test_mathtype_dry_run_includes_guarded_layout_args_when_enabled(tmp_path: Path) -> None:
@@ -177,8 +194,16 @@ def test_mathtype_execute_blocks_external_tools_by_default(tmp_path: Path) -> No
     assert blocker_record["artifact_type"] == "mathtype-blocker-record"
     assert blocker_record["provider"] == "mathtype"
     assert blocker_record["status"] == "blocked-external-tool"
+    assert blocker_record["gate_state"] == "blocked-external-tool"
+    assert blocker_record["conversion_claim"] is False
     assert blocker_record["actions"][0]["action_id"] == "extract-equation-native"
     assert blocker_record["required_evidence"]
+    assert blocker_record["canonical_target"]["conversion_claim"] is False
+    assert "canonical-mathml/*.xml" in blocker_record["canonical_target"]["expected_artifacts"]
+    assert (
+        blocker_record["canonical_artifact_admissibility"]["target_stage"]
+        == "equation-native-mtef-to-canonical-mathml"
+    )
     assert "allow-external-tools" in blocker_record["next_ready_condition"]
 
     first_notes = " ".join(reports[0].notes)
@@ -245,11 +270,19 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
     assert evidence_record["artifact_type"] == "mathtype-validation-evidence"
     assert evidence_record["pipeline"]["action_id"] == "extract-equation-native"
     assert evidence_record["validation_gate"]["artifact_path"] == str(blocker_path)
+    assert evidence_record["canonical_artifact_gate"]["status"] == "review-gated"
+    assert evidence_record["canonical_artifact_gate"]["conversion_claim"] is False
+    assert (
+        evidence_record["canonical_artifact_gate"]["admissibility"]["target_stage"]
+        == "equation-native-mtef-to-canonical-mathml"
+    )
     assert evidence_record["covered_actions"][0]["action_id"] == "mtef-to-mathml"
 
     blocker_record = json.loads(blocker_path.read_text(encoding="utf-8"))
     assert blocker_record["artifact_type"] == "mathtype-blocker-record"
     assert blocker_record["status"] == "validation-gated"
+    assert blocker_record["conversion_claim"] is False
+    assert "canonical_artifact_admissibility" in blocker_record
     assert blocker_record["pipeline_artifact_path"] == str(evidence_path)
 
 
