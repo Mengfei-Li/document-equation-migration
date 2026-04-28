@@ -196,3 +196,68 @@ def test_omml_limits_convert_to_mathml_under_and_over() -> None:
     assert "<math:mn>0</math:mn>" in mathml
     assert "<math:mo>^</math:mo>" in mathml
     assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_group_character_converts_to_mathml_accented_under_or_over() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:groupChr>
+        <m:groupChrPr><m:chr m:val="&#x23DE;" /><m:pos m:val="top" /></m:groupChrPr>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:groupChr>
+      <m:groupChr>
+        <m:groupChrPr><m:chr m:val="&#x23DF;" /><m:pos m:val="bot" /></m:groupChrPr>
+        <m:e><m:r><m:t>y</m:t></m:r></m:e>
+      </m:groupChr>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert '<math:mover accent="true">' in mathml
+    assert '<math:munder accentunder="true">' in mathml
+    assert f"<math:mo>{chr(0x23DE)}</math:mo>" in mathml
+    assert f"<math:mo>{chr(0x23DF)}</math:mo>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "<math:mi>y</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_phantom_and_boxes_convert_to_structured_mathml() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:phant>
+        <m:phantPr><m:show m:val="0" /></m:phantPr>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:phant>
+      <m:box>
+        <m:e><m:r><m:t>y</m:t></m:r></m:e>
+      </m:box>
+      <m:borderBox>
+        <m:e><m:r><m:t>z</m:t></m:r></m:e>
+      </m:borderBox>
+      <m:borderBox>
+        <m:borderBoxPr><m:hideTop m:val="1" /></m:borderBoxPr>
+        <m:e><m:r><m:t>w</m:t></m:r></m:e>
+      </m:borderBox>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:mphantom>" in mathml
+    assert '<math:mrow data-omml-box="true">' in mathml
+    assert '<math:menclose notation="box">' in mathml
+    assert '<math:menclose notation="bottom left right">' in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "<math:mi>w</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_run_style_preserves_mathvariant() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:r><m:rPr><m:sty m:val="b" /></m:rPr><m:t>x</m:t></m:r>
+      <m:r><m:rPr><m:sty m:val="bi" /></m:rPr><m:t>y</m:t></m:r>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert '<math:mi mathvariant="bold">x</math:mi>' in mathml
+    assert '<math:mi mathvariant="bold-italic">y</math:mi>' in mathml
+    assert "data-omml-unsupported" not in mathml

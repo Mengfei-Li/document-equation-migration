@@ -134,6 +134,49 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
         </m:limUpp>
       </m:oMath>
     </w:p>
+    <w:p>
+      <m:oMath>
+        <m:groupChr>
+          <m:groupChrPr><m:chr m:val="&#x23DE;" /><m:pos m:val="top" /></m:groupChrPr>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+        </m:groupChr>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:groupChr>
+          <m:groupChrPr><m:chr m:val="&#x23DF;" /><m:pos m:val="bot" /></m:groupChrPr>
+          <m:e><m:r><m:t>y</m:t></m:r></m:e>
+        </m:groupChr>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:phant>
+          <m:phantPr><m:show m:val="0" /></m:phantPr>
+          <m:e><m:r><m:t>p</m:t></m:r></m:e>
+        </m:phant>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:box>
+          <m:e><m:r><m:t>q</m:t></m:r></m:e>
+        </m:box>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:borderBox>
+          <m:e><m:r><m:t>r</m:t></m:r></m:e>
+        </m:borderBox>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:r><m:rPr><m:sty m:val="bi" /></m:rPr><m:t>v</m:t></m:r>
+      </m:oMath>
+    </w:p>
   </w:body>
 </w:document>
 """.encode("utf-8")
@@ -276,8 +319,8 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
 
     manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
     canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
-    assert manifest["formula_count"] == 13
-    assert canonical_summary["canonical_mathml_count"] == 13
+    assert manifest["formula_count"] == 19
+    assert canonical_summary["canonical_mathml_count"] == 19
     assert canonical_summary["unsupported_fragment_count"] == 0
 
     canonical_text = "\n".join(
@@ -295,6 +338,12 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
     assert f"<math:mo>{chr(0x00AF)}</math:mo>" in canonical_text
     assert f"<math:mo>{chr(0x2061)}</math:mo>" in canonical_text
     assert "<math:munder>" in canonical_text
+    assert f"<math:mo>{chr(0x23DE)}</math:mo>" in canonical_text
+    assert f"<math:mo>{chr(0x23DF)}</math:mo>" in canonical_text
+    assert "<math:mphantom>" in canonical_text
+    assert '<math:mrow data-omml-box="true">' in canonical_text
+    assert '<math:menclose notation="box">' in canonical_text
+    assert '<math:mi mathvariant="bold-italic">v</math:mi>' in canonical_text
 
 
 def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -> None:
