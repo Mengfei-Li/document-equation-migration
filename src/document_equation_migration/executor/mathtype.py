@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -321,8 +322,76 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _is_mathml_root(root: ET.Element) -> bool:
     return _local_name(root.tag) == "math"
+
+
+def _mathml_property_signals(root: ET.Element) -> dict[str, object]:
+    nodes = list(root.iter())
+    return {
+        "root_attributes": dict(root.attrib),
+        "root_display": root.attrib.get("display", ""),
+        "mathml_attribute_count": sum(len(node.attrib) for node in nodes),
+        "has_semantics": any(_local_name(node.tag) == "semantics" for node in nodes),
+        "has_annotation": any(_local_name(node.tag) == "annotation" for node in nodes),
+        "has_mfrac_linethickness": any(
+            "linethickness" in node.attrib
+            for node in nodes
+            if _local_name(node.tag) == "mfrac"
+        ),
+        "has_mfrac_bevelled": any(
+            node.attrib.get("bevelled") == "true"
+            for node in nodes
+            if _local_name(node.tag) == "mfrac"
+        ),
+        "has_mfenced_separators": any(
+            "separators" in node.attrib
+            for node in nodes
+            if _local_name(node.tag) == "mfenced"
+        ),
+        "has_movablelimits": any("movablelimits" in node.attrib for node in nodes),
+        "has_mathvariant": any("mathvariant" in node.attrib for node in nodes),
+        "has_accent": any(node.attrib.get("accent") == "true" for node in nodes),
+        "has_accentunder": any(node.attrib.get("accentunder") == "true" for node in nodes),
+    }
+
+
+def _property_summary(items: list[dict[str, object]]) -> dict[str, object]:
+    property_keys = (
+        "has_semantics",
+        "has_annotation",
+        "has_mfrac_linethickness",
+        "has_mfrac_bevelled",
+        "has_mfenced_separators",
+        "has_movablelimits",
+        "has_mathvariant",
+        "has_accent",
+        "has_accentunder",
+    )
+    signals = [item.get("property_signals", {}) for item in items]
+    root_display_values = sorted(
+        {
+            str(signal.get("root_display"))
+            for signal in signals
+            if isinstance(signal, dict) and signal.get("root_display")
+        }
+    )
+    return {
+        "mathml_attribute_count": sum(
+            int(signal.get("mathml_attribute_count", 0))
+            for signal in signals
+            if isinstance(signal, dict)
+        ),
+        "root_display_values": root_display_values,
+        "signal_counts": {
+            key: sum(1 for signal in signals if isinstance(signal, dict) and signal.get(key))
+            for key in property_keys
+        },
+    }
 
 
 def _write_canonical_mathml_artifacts(
@@ -381,7 +450,8 @@ def _write_canonical_mathml_artifacts(
 
         formula_id = f"mathtype-canonical-{len(canonical_items) + 1:04d}"
         target_path = canonical_dir / f"{formula_id}.xml"
-        target_path.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n{text}\n', encoding="utf-8")
+        target_text = f'<?xml version="1.0" encoding="UTF-8"?>\n{text}\n'
+        target_path.write_text(target_text, encoding="utf-8")
         canonical_items.append(
             {
                 "formula_id": formula_id,
@@ -390,6 +460,11 @@ def _write_canonical_mathml_artifacts(
                 "source_family": _SOURCE_FAMILY,
                 "provider": _PROVIDER_NAME,
                 "source_index": index,
+                "source_sha256": _sha256_text(text),
+                "canonical_sha256": _sha256_text(target_text),
+                "preservation_status": "mathml-content-preserved-with-xml-declaration",
+                "root_tag": root.tag,
+                "property_signals": _mathml_property_signals(root),
             }
         )
 
@@ -420,6 +495,7 @@ def _write_canonical_mathml_artifacts(
         "gate_status": gate_status,
         "canonical_mathml_dir": str(canonical_dir),
         "source_to_canonical_provenance": canonical_items,
+        "property_summary": _property_summary(canonical_items),
         "unsupported_fragments": unsupported_items,
     }
     _write_json(_canonicalization_summary_path(output_root), summary)
@@ -524,6 +600,7 @@ def _write_validation_evidence(
             "canonical_mathml_count": canonicalization_summary["canonical_mathml_count"],
             "unsupported_fragment_count": canonicalization_summary["unsupported_fragment_count"],
             "formula_count_parity": canonicalization_summary["formula_count_parity"],
+            "property_summary": canonicalization_summary["property_summary"],
         },
         "source_to_canonical_provenance": canonicalization_summary["source_to_canonical_provenance"],
         "next_ready_condition": (

@@ -220,7 +220,12 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
         converted_dir = output_dir / "converted"
         converted_dir.mkdir(parents=True, exist_ok=True)
         (converted_dir / "formula-0001.mml").write_text(
-            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>',
+            (
+                '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">'
+                '<mfrac linethickness="0"><mi>x</mi><mn>2</mn></mfrac>'
+                '<mi mathvariant="bold">y</mi>'
+                "</math>"
+            ),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(
@@ -287,9 +292,17 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
         == "equation-native-mtef-to-canonical-mathml"
     )
     assert len(evidence_record["source_to_canonical_provenance"]) == 1
-    canonical_path = Path(evidence_record["source_to_canonical_provenance"][0]["canonical_artifact_path"])
+    provenance = evidence_record["source_to_canonical_provenance"][0]
+    canonical_path = Path(provenance["canonical_artifact_path"])
     assert canonical_path.exists()
-    assert "<math" in canonical_path.read_text(encoding="utf-8")
+    canonical_text = canonical_path.read_text(encoding="utf-8")
+    assert "<math" in canonical_text
+    assert provenance["source_sha256"]
+    assert provenance["canonical_sha256"]
+    assert provenance["preservation_status"] == "mathml-content-preserved-with-xml-declaration"
+    assert provenance["property_signals"]["root_display"] == "block"
+    assert provenance["property_signals"]["has_mfrac_linethickness"] is True
+    assert provenance["property_signals"]["has_mathvariant"] is True
     assert evidence_record["covered_actions"][0]["action_id"] == "mtef-to-mathml"
 
     canonical_summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
@@ -297,6 +310,13 @@ def test_mathtype_execute_allowed_uses_single_guarded_pipeline(monkeypatch, tmp_
     assert canonical_summary["strategy"] == "materialize-normalized-mathml"
     assert canonical_summary["canonical_mathml_count"] == 1
     assert canonical_summary["formula_count_parity"] == "passed"
+    assert canonical_summary["property_summary"]["root_display_values"] == ["block"]
+    assert canonical_summary["property_summary"]["signal_counts"]["has_mfrac_linethickness"] == 1
+    assert canonical_summary["property_summary"]["signal_counts"]["has_mathvariant"] == 1
+    assert (
+        evidence_record["canonical_artifact_gate"]["property_summary"]
+        == canonical_summary["property_summary"]
+    )
 
     blocker_record = json.loads(blocker_path.read_text(encoding="utf-8"))
     assert blocker_record["artifact_type"] == "mathtype-blocker-record"
@@ -338,6 +358,7 @@ def test_mathtype_execute_allowed_records_invalid_mathml_as_unsupported(monkeypa
     assert evidence_record["canonical_artifact_gate"]["canonical_mathml_count"] == 0
     assert evidence_record["canonical_artifact_gate"]["unsupported_fragment_count"] == 2
     assert canonical_summary["unsupported_fragment_count"] == 2
+    assert canonical_summary["property_summary"]["mathml_attribute_count"] == 0
     assert {item["status"] for item in canonical_summary["unsupported_fragments"]} == {
         "empty-or-bom-only",
         "xml-parse-error",
