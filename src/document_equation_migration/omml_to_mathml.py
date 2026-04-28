@@ -138,7 +138,7 @@ def _convert_delimiter(element: ET.Element) -> ET.Element:
 
 def _convert_nary(element: ET.Element) -> ET.Element:
     nary_properties = _first_child(element, "naryPr")
-    operator = "∑"
+    operator = "\u2211"
     if nary_properties is not None:
         chr_node = nary_properties.find(f".//{{{OMML_NAMESPACE}}}chr")
         if chr_node is not None:

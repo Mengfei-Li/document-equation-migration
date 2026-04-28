@@ -18,10 +18,59 @@ DOCX_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """
 
+COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <m:oMath>
+        <m:f>
+          <m:num><m:r><m:t>1</m:t></m:r></m:num>
+          <m:den><m:r><m:t>2</m:t></m:r></m:den>
+        </m:f>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:sSup>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+          <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+        </m:sSup>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:rad><m:e><m:r><m:t>y</m:t></m:r></m:e></m:rad>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:d>
+          <m:dPr>
+            <m:begChr m:val="(" />
+            <m:endChr m:val=")" />
+          </m:dPr>
+          <m:e><m:r><m:t>z</m:t></m:r></m:e>
+        </m:d>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:nary>
+          <m:naryPr><m:chr m:val="&#x2211;" /></m:naryPr>
+          <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+          <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
+          <m:e><m:r><m:t>a</m:t></m:r></m:e>
+        </m:nary>
+      </m:oMath>
+    </w:p>
+  </w:body>
+</w:document>
+""".encode("utf-8")
 
-def make_docx(path: Path) -> None:
+def make_docx(path: Path, document_xml: bytes = DOCX_XML) -> None:
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("word/document.xml", DOCX_XML)
+        zf.writestr("word/document.xml", document_xml)
 
 
 def make_omml_step(*, requires_manual_review: bool = False) -> ExecutionStep:
@@ -147,6 +196,29 @@ def test_execute_omml_step_writes_manifest_and_validation_plan(tmp_path: Path) -
         "formula-count",
     }
     assert all(item["status"] != "completed" for item in validation_plan["planned_checks"])
+
+
+def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_path: Path) -> None:
+    input_path = tmp_path / "complex.docx"
+    make_docx(input_path, COMPLEX_DOCX_XML)
+
+    reports = execute_omml_step(make_omml_step(), make_context(tmp_path, input_path))
+
+    manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
+    canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
+    assert manifest["formula_count"] == 5
+    assert canonical_summary["canonical_mathml_count"] == 5
+    assert canonical_summary["unsupported_fragment_count"] == 0
+
+    canonical_text = "\n".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in reports[2].output_paths[1:]
+    )
+    assert "<math:mfrac>" in canonical_text
+    assert "<math:msup>" in canonical_text
+    assert "<math:msqrt>" in canonical_text
+    assert "<math:mfenced" in canonical_text
+    assert "<math:munderover>" in canonical_text
 
 
 def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -> None:

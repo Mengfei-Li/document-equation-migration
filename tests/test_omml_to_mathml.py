@@ -25,3 +25,89 @@ def test_omml_fraction_converts_to_mathml_fraction() -> None:
     assert "<math:mfrac>" in mathml
     assert "<math:mn>1</math:mn>" in mathml
     assert "<math:mn>2</math:mn>" in mathml
+
+
+def test_omml_scripts_convert_to_mathml_scripts() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:sSubSup>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+        <m:sub><m:r><m:t>1</m:t></m:r></m:sub>
+        <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+      </m:sSubSup>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:msubsup>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "<math:mn>1</math:mn>" in mathml
+    assert "<math:mn>2</math:mn>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_subscript_converts_to_mathml_subscript() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:sSub>
+        <m:e><m:r><m:t>a</m:t></m:r></m:e>
+        <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+      </m:sSub>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:msub>" in mathml
+    assert "<math:mi>a</math:mi>" in mathml
+    assert "<math:mi>i</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_radical_converts_to_mathml_sqrt() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:rad>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:rad>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:msqrt>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_delimiter_converts_to_mathml_fenced() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:d>
+        <m:dPr>
+          <m:begChr m:val="[" />
+          <m:endChr m:val="]" />
+        </m:dPr>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:d>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert '<math:mfenced open="[" close="]">' in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_nary_converts_to_mathml_under_over_operator() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:nary>
+        <m:naryPr><m:chr m:val="&#x2211;" /></m:naryPr>
+        <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+        <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:nary>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:munderover>" in mathml
+    assert f"<math:mo>{chr(0x2211)}</math:mo>" in mathml
+    assert "<math:mi>i</math:mi>" in mathml
+    assert "<math:mi>n</math:mi>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
