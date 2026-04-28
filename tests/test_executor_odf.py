@@ -103,6 +103,63 @@ FODT_WITH_COMMON_MATHML_STRUCTURES = b"""<?xml version="1.0" encoding="UTF-8"?>
 </office:document-content>
 """
 
+FODT_WITH_PROPERTY_RICH_MATHML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+    xmlns:math="http://www.w3.org/1998/Math/MathML">
+  <office:body>
+    <office:text>
+      <text:p>
+        <math:math display="block">
+          <math:mfrac linethickness="0"><math:mi>a</math:mi><math:mi>b</math:mi></math:mfrac>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:mfrac bevelled="true"><math:mn>1</math:mn><math:mn>2</math:mn></math:mfrac>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:mfenced open="[" close="]" separators=";">
+            <math:mi>x</math:mi><math:mi>y</math:mi>
+          </math:mfenced>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:mrow>
+            <math:munderover>
+              <math:mo movablelimits="true">&#x2211;</math:mo>
+              <math:mi>i</math:mi>
+              <math:mi>n</math:mi>
+            </math:munderover>
+            <math:mi>a</math:mi>
+          </math:mrow>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math><math:mi mathvariant="bold-italic">v</math:mi></math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:munder accentunder="true"><math:mi>x</math:mi><math:mo>&#x00AF;</math:mo></math:munder>
+        </math:math>
+      </text:p>
+      <text:p>
+        <math:math>
+          <math:semantics>
+            <math:mrow><math:mi>x</math:mi><math:mo>+</math:mo><math:mn>1</math:mn></math:mrow>
+            <math:annotation encoding="application/x-tex">x+1</math:annotation>
+          </math:semantics>
+        </math:math>
+      </text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+"""
+
 ODT_CONTENT_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
@@ -266,6 +323,54 @@ def test_execute_odf_native_preserves_common_canonical_mathml_structures(tmp_pat
     assert f"<math:mo>{chr(0x2061)}</math:mo>" in canonical_text
     assert "<math:munder>" in canonical_text
     assert "<math:mo>^</math:mo>" in canonical_text
+
+
+def test_execute_odf_native_preserves_mathml_properties_and_metadata(tmp_path: Path) -> None:
+    input_path = tmp_path / "property-rich.fodt"
+    input_path.write_bytes(FODT_WITH_PROPERTY_RICH_MATHML)
+
+    reports = execute_odf_step(_native_step(), _execution_context(tmp_path, input_path))
+
+    manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
+    canonical_summary = json.loads(Path(reports[1].output_paths[0]).read_text(encoding="utf-8"))
+    evidence = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
+    assert manifest["formula_count"] == 7
+    assert canonical_summary["expected_formula_count"] == 7
+    assert canonical_summary["canonical_mathml_count"] == 7
+    assert canonical_summary["unsupported_fragment_count"] == 0
+    assert canonical_summary["formula_count_parity"] == "passed"
+    assert len(canonical_summary["source_to_canonical_provenance"]) == 7
+    assert {item["preservation_status"] for item in canonical_summary["source_to_canonical_provenance"]} == {
+        "byte-identical-after-extraction"
+    }
+
+    property_summary = canonical_summary["property_summary"]
+    assert property_summary["mathml_attribute_count"] >= 8
+    assert property_summary["root_display_values"] == ["block"]
+    assert property_summary["signal_counts"]["has_mfrac_linethickness"] == 1
+    assert property_summary["signal_counts"]["has_mfrac_bevelled"] == 1
+    assert property_summary["signal_counts"]["has_mfenced_separators"] == 1
+    assert property_summary["signal_counts"]["has_movablelimits"] == 1
+    assert property_summary["signal_counts"]["has_mathvariant"] == 1
+    assert property_summary["signal_counts"]["has_accentunder"] == 1
+    assert property_summary["signal_counts"]["has_semantics"] == 1
+    assert property_summary["signal_counts"]["has_annotation"] == 1
+    assert evidence["canonicalization"]["formula_count_parity"] == "passed"
+    assert evidence["canonicalization"]["property_summary"] == property_summary
+    assert len(evidence["source_to_canonical_provenance"]) == 7
+
+    canonical_text = "\n".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in reports[1].output_paths[1:]
+    )
+    assert 'display="block"' in canonical_text
+    assert 'linethickness="0"' in canonical_text
+    assert 'bevelled="true"' in canonical_text
+    assert 'separators=";"' in canonical_text
+    assert 'movablelimits="true"' in canonical_text
+    assert 'mathvariant="bold-italic"' in canonical_text
+    assert 'accentunder="true"' in canonical_text
+    assert 'encoding="application/x-tex"' in canonical_text
 
 
 def test_execute_odf_native_extracts_mathml_from_odt_subdocument(tmp_path: Path) -> None:
