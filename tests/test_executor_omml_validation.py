@@ -40,6 +40,14 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
     </w:p>
     <w:p>
       <m:oMath>
+        <m:sSub>
+          <m:e><m:r><m:t>a</m:t></m:r></m:e>
+          <m:sub><m:r><m:t>i</m:t></m:r></m:sub>
+        </m:sSub>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
         <m:rad><m:e><m:r><m:t>y</m:t></m:r></m:e></m:rad>
       </m:oMath>
     </w:p>
@@ -62,6 +70,68 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
           <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
           <m:e><m:r><m:t>a</m:t></m:r></m:e>
         </m:nary>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:eqArr>
+          <m:e><m:r><m:t>x</m:t></m:r><m:r><m:t>=</m:t></m:r><m:r><m:t>1</m:t></m:r></m:e>
+          <m:e><m:r><m:t>y</m:t></m:r><m:r><m:t>=</m:t></m:r><m:r><m:t>2</m:t></m:r></m:e>
+        </m:eqArr>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:m>
+          <m:mr>
+            <m:e><m:r><m:t>a</m:t></m:r></m:e>
+            <m:e><m:r><m:t>b</m:t></m:r></m:e>
+          </m:mr>
+          <m:mr>
+            <m:e><m:r><m:t>c</m:t></m:r></m:e>
+            <m:e><m:r><m:t>d</m:t></m:r></m:e>
+          </m:mr>
+        </m:m>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:acc>
+          <m:accPr><m:chr m:val="~" /></m:accPr>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+        </m:acc>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:bar>
+          <m:barPr><m:pos m:val="top" /></m:barPr>
+          <m:e><m:r><m:t>y</m:t></m:r></m:e>
+        </m:bar>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:func>
+          <m:fName><m:r><m:t>sin</m:t></m:r></m:fName>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+        </m:func>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:limLow>
+          <m:e><m:r><m:t>lim</m:t></m:r></m:e>
+          <m:lim><m:r><m:t>0</m:t></m:r></m:lim>
+        </m:limLow>
+      </m:oMath>
+    </w:p>
+    <w:p>
+      <m:oMath>
+        <m:limUpp>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+          <m:lim><m:r><m:t>^</m:t></m:r></m:lim>
+        </m:limUpp>
       </m:oMath>
     </w:p>
   </w:body>
@@ -206,8 +276,8 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
 
     manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
     canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
-    assert manifest["formula_count"] == 5
-    assert canonical_summary["canonical_mathml_count"] == 5
+    assert manifest["formula_count"] == 13
+    assert canonical_summary["canonical_mathml_count"] == 13
     assert canonical_summary["unsupported_fragment_count"] == 0
 
     canonical_text = "\n".join(
@@ -216,9 +286,15 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
     )
     assert "<math:mfrac>" in canonical_text
     assert "<math:msup>" in canonical_text
+    assert "<math:msub>" in canonical_text
     assert "<math:msqrt>" in canonical_text
     assert "<math:mfenced" in canonical_text
     assert "<math:munderover>" in canonical_text
+    assert "<math:mtable>" in canonical_text
+    assert '<math:mover accent="true">' in canonical_text
+    assert f"<math:mo>{chr(0x00AF)}</math:mo>" in canonical_text
+    assert f"<math:mo>{chr(0x2061)}</math:mo>" in canonical_text
+    assert "<math:munder>" in canonical_text
 
 
 def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -> None:

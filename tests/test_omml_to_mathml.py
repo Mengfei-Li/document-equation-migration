@@ -111,3 +111,88 @@ def test_omml_nary_converts_to_mathml_under_over_operator() -> None:
     assert "<math:mi>n</math:mi>" in mathml
     assert "<math:mi>x</math:mi>" in mathml
     assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_matrix_converts_to_mathml_table() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:m>
+        <m:mr>
+          <m:e><m:r><m:t>a</m:t></m:r></m:e>
+          <m:e><m:r><m:t>b</m:t></m:r></m:e>
+        </m:mr>
+        <m:mr>
+          <m:e><m:r><m:t>c</m:t></m:r></m:e>
+          <m:e><m:r><m:t>d</m:t></m:r></m:e>
+        </m:mr>
+      </m:m>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:mtable>" in mathml
+    assert mathml.count("<math:mtr>") == 2
+    assert mathml.count("<math:mtd>") == 4
+    assert "<math:mi>a</math:mi>" in mathml
+    assert "<math:mi>d</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_accent_and_bar_convert_to_mathml_overscripts() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:acc>
+        <m:accPr><m:chr m:val="~" /></m:accPr>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:acc>
+      <m:bar>
+        <m:barPr><m:pos m:val="top" /></m:barPr>
+        <m:e><m:r><m:t>y</m:t></m:r></m:e>
+      </m:bar>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert '<math:mover accent="true">' in mathml
+    assert "<math:mo>~</math:mo>" in mathml
+    assert "<math:mover>" in mathml
+    assert f"<math:mo>{chr(0x00AF)}</math:mo>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "<math:mi>y</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_function_converts_to_mathml_function_application() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:func>
+        <m:fName><m:r><m:t>sin</m:t></m:r></m:fName>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+      </m:func>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:mi>sin</math:mi>" in mathml
+    assert f"<math:mo>{chr(0x2061)}</math:mo>" in mathml
+    assert "<math:mi>x</math:mi>" in mathml
+    assert "data-omml-unsupported" not in mathml
+
+
+def test_omml_limits_convert_to_mathml_under_and_over() -> None:
+    payload = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:limLow>
+        <m:e><m:r><m:t>lim</m:t></m:r></m:e>
+        <m:lim><m:r><m:t>0</m:t></m:r></m:lim>
+      </m:limLow>
+      <m:limUpp>
+        <m:e><m:r><m:t>x</m:t></m:r></m:e>
+        <m:lim><m:r><m:t>^</m:t></m:r></m:lim>
+      </m:limUpp>
+    </m:oMath>"""
+
+    mathml = omml_fragment_to_mathml(payload)
+
+    assert "<math:munder>" in mathml
+    assert "<math:mover>" in mathml
+    assert "<math:mi>lim</math:mi>" in mathml
+    assert "<math:mn>0</math:mn>" in mathml
+    assert "<math:mo>^</math:mo>" in mathml
+    assert "data-omml-unsupported" not in mathml

@@ -63,7 +63,7 @@ def _token_for_text(text: str) -> ET.Element:
         return _mml("mtext", "")
     if stripped.replace(".", "", 1).isdigit():
         return _mml("mn", stripped)
-    if all(char in "+-=*/()[]{}<>|,.;:!?" for char in stripped):
+    if all(char in "+-=*/^_()[]{}<>|,.;:!?" for char in stripped):
         return _mml("mo", stripped)
     return _mml("mi", stripped)
 
@@ -167,6 +167,60 @@ def _convert_eq_array(element: ET.Element) -> ET.Element:
     return _mml("mtable", children=rows)
 
 
+def _convert_matrix(element: ET.Element) -> ET.Element:
+    rows = []
+    for row in list(element):
+        if _local_name(row.tag) != "mr":
+            continue
+        cells = [
+            _mml("mtd", children=[_row(_flatten_children(cell))])
+            for cell in list(row)
+            if _local_name(cell.tag) == "e"
+        ]
+        if cells:
+            rows.append(_mml("mtr", children=cells))
+    return _mml("mtable", children=rows)
+
+
+def _omml_property_value(element: ET.Element, property_name: str, default: str) -> str:
+    property_node = element.find(f".//{{{OMML_NAMESPACE}}}{property_name}")
+    if property_node is None:
+        return default
+    return property_node.attrib.get(f"{{{OMML_NAMESPACE}}}val", default)
+
+
+def _convert_accent(element: ET.Element) -> ET.Element:
+    operator = _omml_property_value(element, "chr", "^")
+    mover = _mml("mover", children=[_converted_child(element, "e"), _mml("mo", operator)])
+    mover.set("accent", "true")
+    return mover
+
+
+def _convert_bar(element: ET.Element) -> ET.Element:
+    operator = "\u00af"
+    base = _converted_child(element, "e")
+    position = _omml_property_value(element, "pos", "top")
+    if position == "bot":
+        return _mml("munder", children=[base, _mml("mo", operator)])
+    return _mml("mover", children=[base, _mml("mo", operator)])
+
+
+def _convert_function(element: ET.Element) -> ET.Element:
+    return _row([
+        _converted_child(element, "fName"),
+        _mml("mo", "\u2061"),
+        _converted_child(element, "e"),
+    ])
+
+
+def _convert_limit(element: ET.Element, tag: str) -> ET.Element:
+    base = _converted_child(element, "e")
+    limit = _converted_child(element, "lim")
+    if tag == "limLow":
+        return _mml("munder", children=[base, limit])
+    return _mml("mover", children=[base, limit])
+
+
 def _unsupported_row(element: ET.Element) -> ET.Element:
     children = _flatten_children(element)
     row = _mml("mrow", children=children)
@@ -176,7 +230,7 @@ def _unsupported_row(element: ET.Element) -> ET.Element:
 
 def _convert_node(element: ET.Element) -> ET.Element | None:
     local = _local_name(element.tag)
-    if local in {"oMath", "oMathPara", "num", "den", "e", "sup", "sub", "deg"}:
+    if local in {"oMath", "oMathPara", "num", "den", "e", "sup", "sub", "deg", "fName", "lim"}:
         return _row(_flatten_children(element))
     if local == "r":
         return _convert_run(element)
@@ -194,6 +248,16 @@ def _convert_node(element: ET.Element) -> ET.Element | None:
         return _convert_nary(element)
     if local == "eqArr":
         return _convert_eq_array(element)
+    if local == "m":
+        return _convert_matrix(element)
+    if local == "acc":
+        return _convert_accent(element)
+    if local == "bar":
+        return _convert_bar(element)
+    if local == "func":
+        return _convert_function(element)
+    if local in {"limLow", "limUpp"}:
+        return _convert_limit(element, local)
     if local.endswith("Pr"):
         return None
     if element.text and not list(element):
