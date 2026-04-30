@@ -5,6 +5,8 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
+import document_equation_migration.detectors.equation_editor_3_ole as equation3_detector_module
+import document_equation_migration.executor.equation3 as equation3_executor_module
 from document_equation_migration.execution_plan.model import ExecutionAction, ExecutionStep
 from document_equation_migration.executor.equation3 import (
     build_equation3_dry_run_reports,
@@ -234,6 +236,79 @@ def test_equation3_execute_writes_limited_canonical_mathml_for_supported_payload
     root = ET.parse(canonical_path).getroot()
     assert local_name(root.tag) == "math"
     assert "".join(root.itertext()) == "bk=ak"
+
+
+def test_equation3_execute_reads_legacy_doc_equation_native_stream(tmp_path: Path) -> None:
+    native_stream = _supported_equation_native_stream()
+
+    class FakeStream:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+
+        def read(self) -> bytes:
+            return self.data
+
+    class FakeOle:
+        streams = {
+            "WordDocument": b"EMBED Equation.3",
+            "ObjectPool/_1/\x01CompObj": b"Microsoft Equation 3.0\x00Equation.3\x00",
+            "ObjectPool/_1/Equation Native": native_stream,
+        }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def listdir(self):
+            return [name.split("/") for name in self.streams]
+
+        def openstream(self, name):
+            key = "/".join(name) if isinstance(name, list) else name
+            return FakeStream(self.streams[key])
+
+    class FakeOlefile:
+        @staticmethod
+        def isOleFile(path) -> bool:
+            return True
+
+        @staticmethod
+        def OleFileIO(path) -> FakeOle:
+            return FakeOle()
+
+    input_path = tmp_path / "legacy.doc"
+    input_path.write_bytes(b"OLE-CFB")
+    context = ExecutionContext(
+        workspace_root=str(tmp_path),
+        execution_plan_path=str(tmp_path / "execution-plan.json"),
+        input_path=str(input_path),
+        output_dir=str(tmp_path / "out"),
+    )
+    original_detector_olefile = equation3_detector_module.olefile
+    original_executor_olefile = equation3_executor_module.olefile
+    equation3_detector_module.olefile = FakeOlefile
+    equation3_executor_module.olefile = FakeOlefile
+    try:
+        reports = execute_equation3_step(_equation3_step(formula_count=1), context)
+    finally:
+        equation3_detector_module.olefile = original_detector_olefile
+        equation3_executor_module.olefile = original_executor_olefile
+
+    assert [report.status for report in reports] == [
+        "completed",
+        "completed",
+        "skipped-not-needed",
+        "skipped-downstream",
+    ]
+    output_root = tmp_path / "out" / "equation-editor-3-ole"
+    summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
+    assert summary["input_path"] == str(input_path)
+    assert summary["canonical_mathml_count"] == 1
+    provenance = summary["source_to_canonical_provenance"][0]
+    assert provenance["embedding_target"] == "ObjectPool/_1/Equation Native"
+    assert provenance["payload_stream_name"] == "ObjectPool/_1/Equation Native"
+    assert summary["claim_boundary"]["not_accepted"][0] == "Universal Equation Editor 3.0 support."
 
 
 def test_equation3_provider_rejects_wrong_source_family(tmp_path: Path) -> None:

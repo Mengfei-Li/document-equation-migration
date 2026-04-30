@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+import document_equation_migration.container_scan as container_scan_module
 from document_equation_migration.container_scan import scan_container
 
 
@@ -64,6 +65,67 @@ FODT_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 
 class ContainerScanTests(unittest.TestCase):
+    def test_scan_legacy_doc_detects_ole_equation_native_streams(self) -> None:
+        class FakeStream:
+            def __init__(self, data: bytes) -> None:
+                self.data = data
+
+            def read(self) -> bytes:
+                return self.data
+
+        class FakeOle:
+            streams = {
+                "WordDocument": b"EMBED Equation.3 EMBED Equation.3",
+                "ObjectPool/_1/\x01CompObj": b"Microsoft Equation 3.0\x00Equation.3\x00",
+                "ObjectPool/_1/Equation Native": b"native-1",
+                "ObjectPool/_2/Equation Native": b"native-2",
+            }
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def listdir(self):
+                return [name.split("/") for name in self.streams]
+
+            def exists(self, name: str) -> bool:
+                return name in self.streams
+
+            def openstream(self, name):
+                key = "/".join(name) if isinstance(name, list) else name
+                return FakeStream(self.streams[key])
+
+        class FakeOlefile:
+            @staticmethod
+            def isOleFile(path) -> bool:
+                return True
+
+            @staticmethod
+            def OleFileIO(path) -> FakeOle:
+                return FakeOle()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "legacy.doc"
+            path.write_bytes(b"OLE-CFB")
+            original_olefile = container_scan_module.olefile
+            container_scan_module.olefile = FakeOlefile
+            try:
+                result = scan_container(path)
+            finally:
+                container_scan_module.olefile = original_olefile
+
+        self.assertEqual(result.container_format, "doc")
+        self.assertEqual(result.package_kind, "ole-cfb")
+        self.assertEqual(
+            result.embedding_targets,
+            ["ObjectPool/_1/Equation Native", "ObjectPool/_2/Equation Native"],
+        )
+        self.assertEqual(result.object_parts, ["ObjectPool/_1", "ObjectPool/_2"])
+        self.assertEqual(result.story_parts[0].ole_object_count, 2)
+        self.assertEqual(result.story_parts[0].field_code_count, 2)
+
     def test_scan_docx_detects_story_parts_embeddings_and_media(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "sample.docx"

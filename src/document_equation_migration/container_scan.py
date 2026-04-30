@@ -6,6 +6,11 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+try:
+    import olefile
+except ImportError:  # pragma: no cover - dependency is declared, this is defensive.
+    olefile = None
+
 
 DOCX_STORY_TYPES = {
     "word/document.xml": "main",
@@ -189,11 +194,56 @@ def _scan_fodt(path: Path) -> ContainerScanResult:
     )
 
 
+def _scan_legacy_doc(path: Path) -> ContainerScanResult:
+    if olefile is None or not olefile.isOleFile(path):
+        raise ValueError(f"Unsupported input format: {path.suffix}")
+
+    with olefile.OleFileIO(path) as ole:
+        entries = sorted("/".join(item) for item in ole.listdir())
+        equation_native_targets = [
+            name for name in entries if name == "Equation Native" or name.endswith("/Equation Native")
+        ]
+        object_storages = sorted({name.rsplit("/", 1)[0] for name in equation_native_targets if "/" in name})
+
+        field_code_count = 0
+        if ole.exists("WordDocument"):
+            word_document = ole.openstream("WordDocument").read()
+            field_code_count = _count(word_document, b"EMBED Equation.3")
+
+    story_parts: list[StoryPartScan] = []
+    if equation_native_targets or field_code_count:
+        story_parts.append(
+            StoryPartScan(
+                part_path="WordDocument",
+                story_type="main",
+                ole_object_count=len(equation_native_targets),
+                field_code_count=field_code_count,
+            )
+        )
+
+    return ContainerScanResult(
+        input_path=str(path),
+        input_sha256=_sha256_file(path),
+        container_format="doc",
+        package_kind="ole-cfb",
+        entry_count=len(entries),
+        entries=entries,
+        story_parts=story_parts,
+        embedding_targets=equation_native_targets,
+        object_parts=object_storages,
+        notes=[
+            "Legacy binary Word scan treats OLE ObjectPool Equation Native streams as Equation Editor 3.0 source candidates."
+        ],
+    )
+
+
 def scan_container(path: str | Path) -> ContainerScanResult:
     resolved = Path(path).resolve()
     suffix = resolved.suffix.lower()
     if suffix == ".docx":
         return _scan_docx(resolved)
+    if suffix == ".doc":
+        return _scan_legacy_doc(resolved)
     if suffix == ".odt":
         return _scan_odf_zip(resolved, "odt")
     if suffix == ".fodt":

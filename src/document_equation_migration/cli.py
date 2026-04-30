@@ -21,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     scan_parser = subparsers.add_parser("scan", help="Scan a document and emit a manifest JSON.")
-    scan_parser.add_argument("input", help="Path to .docx, .odt, or .fodt input.")
+    scan_parser.add_argument("input", help="Path to .doc, .docx, .odt, or .fodt input.")
     scan_parser.add_argument("-o", "--output", help="Write manifest JSON to a file instead of stdout.")
     scan_parser.add_argument(
         "--routing",

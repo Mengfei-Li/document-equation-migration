@@ -217,6 +217,27 @@ def _find_payload_probe(data: bytes, streams: list[dict[str, Any]]) -> tuple[dic
     return probe_eqnolefilehdr(data), data if data else None, None
 
 
+def _legacy_doc_has_vendor_conflict(markers: list[str]) -> bool:
+    lowered = "\n".join(markers).lower()
+    return "equation.dsmt" in lowered or "equation.axmath" in lowered or "mathtype" in lowered
+
+
+def _legacy_doc_prog_id_from_markers(markers: list[str]) -> str | None:
+    lowered = "\n".join(markers).lower()
+    if "equation.3" in lowered or "microsoft equation 3.0" in lowered:
+        return "Equation.3"
+    return None
+
+
+def _collect_legacy_object_markers(ole: Any, stream_names: list[str], object_storage: str) -> tuple[list[str], list[str]]:
+    child_names = [name for name in stream_names if name.startswith(f"{object_storage}/")]
+    markers: list[str] = []
+    for child_name in child_names:
+        stream_data = ole.openstream(child_name.split("/")).read()
+        markers.extend(_ascii_markers(stream_data))
+    return list(dict.fromkeys(markers)), child_names
+
+
 def _build_formula_id(sequence: int) -> str:
     return f"equation-editor-3-ole-{sequence:04d}"
 
@@ -375,8 +396,66 @@ def _detect_from_embedding(
     }
 
 
+def detect_equation_editor_3_ole_legacy_doc(doc_path: str | Path) -> list[dict[str, Any]]:
+    path = Path(doc_path)
+    if olefile is None or not olefile.isOleFile(path):
+        return []
+
+    results: list[dict[str, Any]] = []
+    with olefile.OleFileIO(path) as ole:
+        stream_names = sorted("/".join(item) for item in ole.listdir())
+        native_streams = [
+            name for name in stream_names if name == "Equation Native" or name.endswith("/Equation Native")
+        ]
+
+        sequence = 0
+        for stream_name in native_streams:
+            object_storage = stream_name.rsplit("/", 1)[0] if "/" in stream_name else ""
+            markers, child_names = _collect_legacy_object_markers(ole, stream_names, object_storage)
+            if _legacy_doc_has_vendor_conflict(markers):
+                continue
+
+            native_payload = ole.openstream(stream_name.split("/")).read()
+            probe = probe_eqnolefilehdr(native_payload)
+            prog_id_raw = _legacy_doc_prog_id_from_markers(markers)
+            if prog_id_raw is None and not probe["header_detected"]:
+                continue
+
+            sequence += 1
+            record = _detect_from_embedding(
+                native_payload,
+                formula_id=_build_formula_id(sequence),
+                doc_part_path=f"legacy-doc:{stream_name}",
+                story_type="main",
+                relationship_id="",
+                embedding_target=stream_name,
+                preview_target=None,
+                paragraph_index=sequence - 1,
+                run_index=0,
+                object_sequence=sequence,
+                prog_id_raw=prog_id_raw,
+                field_code_raw="EMBED Equation.3" if prog_id_raw == "Equation.3" else None,
+            )
+            if record is None:
+                continue
+
+            record["storage_kind"] = "ole-cfb-stream"
+            record["provenance"]["payload_stream_name"] = stream_name
+            record["provenance"]["ole_stream_names"] = child_names
+            record["provenance"]["raw_payload_sha256"] = hashlib.sha256(native_payload).hexdigest()
+            record["provenance"]["ascii_markers"] = markers
+            record["provenance"]["evidence_sources"] = [str(path), stream_name, *child_names]
+            record["source_specific"]["equation_editor_3"]["object_storage"] = object_storage
+            results.append(record)
+
+    return results
+
+
 def detect_equation_editor_3_ole(docx_path: str | Path) -> list[dict[str, Any]]:
     path = Path(docx_path)
+    if path.suffix.lower() == ".doc":
+        return detect_equation_editor_3_ole_legacy_doc(path)
+
     results: list[dict[str, Any]] = []
     sequence = 0
 

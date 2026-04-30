@@ -86,6 +86,66 @@ class EquationEditor3OleDetectorTests(unittest.TestCase):
         self.assertEqual(record["risk_level"], "low")
         self.assertGreaterEqual(record["confidence"], 0.75)
 
+    def test_detects_legacy_doc_equation_native_stream(self):
+        payload = _fixture_bytes_from_hex("equation3_native_payload.hex")
+
+        class FakeStream:
+            def __init__(self, data: bytes) -> None:
+                self.data = data
+
+            def read(self) -> bytes:
+                return self.data
+
+        class FakeOle:
+            streams = {
+                "WordDocument": b"EMBED Equation.3",
+                "ObjectPool/_1/\x01CompObj": b"Microsoft Equation 3.0\x00DS Equation\x00Equation.3\x00",
+                "ObjectPool/_1/\x01Ole": b"\x01\x00",
+                "ObjectPool/_1/Equation Native": payload,
+            }
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def listdir(self):
+                return [name.split("/") for name in self.streams]
+
+            def openstream(self, name):
+                key = "/".join(name) if isinstance(name, list) else name
+                return FakeStream(self.streams[key])
+
+        class FakeOlefile:
+            @staticmethod
+            def isOleFile(path) -> bool:
+                return True
+
+            @staticmethod
+            def OleFileIO(path) -> FakeOle:
+                return FakeOle()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            doc_path = Path(tmp_dir) / "legacy.doc"
+            doc_path.write_bytes(b"OLE-CFB")
+            original_olefile = self.module.olefile
+            self.module.olefile = FakeOlefile
+            try:
+                records = self.module.detect_equation_editor_3_ole(doc_path)
+            finally:
+                self.module.olefile = original_olefile
+
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record["storage_kind"], "ole-cfb-stream")
+        self.assertEqual(record["embedding_target"], "ObjectPool/_1/Equation Native")
+        self.assertEqual(record["provenance"]["prog_id_raw"], "Equation.3")
+        self.assertEqual(record["provenance"]["payload_stream_name"], "ObjectPool/_1/Equation Native")
+        self.assertIn("Microsoft Equation 3.0", record["provenance"]["ascii_markers"])
+        self.assertEqual(record["source_specific"]["equation_editor_3"]["mtef_version"], 3)
+        self.assertEqual(record["source_specific"]["equation_editor_3"]["object_storage"], "ObjectPool/_1")
+
     def test_marks_preview_only_when_payload_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             docx_path = Path(tmp_dir) / "synthetic-eq3-preview-only.docx"

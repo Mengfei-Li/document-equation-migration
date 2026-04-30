@@ -5,6 +5,11 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+try:
+    import olefile
+except ImportError:  # pragma: no cover - dependency is declared, this is defensive.
+    olefile = None
+
 from ..canonical_mathml_evidence import mathml_property_signals, property_summary, sha256_text
 from ..canonical_target import canonical_mathml_contract_for_source_family
 from ..detectors.equation_editor_3_ole import detect_equation_editor_3_ole
@@ -24,8 +29,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
     return {
         "target_stage": "fixture-backed-canonical-mathml-conversion",
         "minimum_fixture_set": (
-            "At least one redistributable or explicitly authorized DOCX containing a real Equation.3 "
-            "native OLE payload, not only a preview image or marker payload."
+            "At least one redistributable or explicitly authorized DOCX or legacy DOC containing a real "
+            "Equation.3 native OLE payload, not only a preview image or marker payload."
         ),
         "required_candidate_properties": [
             {
@@ -98,6 +103,10 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
         "current_productized_slice": {
             "status": "implemented-limited",
             "supported_mtef_version": 3,
+            "supported_containers": [
+                "DOCX OLE embeddings exposing Equation Native payloads",
+                "legacy .doc OLE compound files exposing ObjectPool/*/Equation Native streams",
+            ],
             "supported_records": [
                 "slot",
                 "char",
@@ -137,6 +146,35 @@ def _canonical_mathml_dir(output_root: Path) -> Path:
     return output_root / "canonical-mathml"
 
 
+def _is_legacy_doc_input(input_path: Path) -> bool:
+    return input_path.suffix.lower() == ".doc"
+
+
+def _read_legacy_doc_stream(input_path: Path, stream_name: str) -> bytes:
+    if olefile is None:
+        raise Equation3MtefError("olefile dependency is required for legacy .doc Equation3 ingestion.")
+    with olefile.OleFileIO(input_path) as ole:
+        return ole.openstream(stream_name.split("/")).read()
+
+
+def _read_record_payload(
+    input_path: Path,
+    record: dict[str, object],
+    zip_file: zipfile.ZipFile | None,
+) -> bytes:
+    embedding_target = str(record.get("embedding_target") or "")
+    if _is_legacy_doc_input(input_path):
+        if not embedding_target:
+            raise Equation3MtefError("Legacy .doc Equation3 record is missing an OLE stream target.")
+        return _read_legacy_doc_stream(input_path, embedding_target)
+
+    if zip_file is None:
+        raise Equation3MtefError("DOCX Equation3 record requires an open ZIP container.")
+    if not embedding_target or embedding_target not in zip_file.namelist():
+        raise Equation3MtefError(f"Missing DOCX embedding target: {embedding_target}")
+    return zip_file.read(embedding_target)
+
+
 def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionContext) -> dict[str, object]:
     input_path = Path(context.input_path)
     output_root = _execution_output_root(context)
@@ -147,7 +185,10 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
     canonical_items: list[dict[str, object]] = []
     unsupported_items: list[dict[str, object]] = []
 
-    with zipfile.ZipFile(input_path) as zf:
+    zip_file: zipfile.ZipFile | None = None
+    if not _is_legacy_doc_input(input_path):
+        zip_file = zipfile.ZipFile(input_path)
+    try:
         for index, record in enumerate(records, start=1):
             formula_id = f"equation3-canonical-{index:04d}"
             embedding_target = str(record.get("embedding_target") or "")
@@ -172,19 +213,10 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
                     }
                 )
                 continue
-            if not embedding_target or embedding_target not in zf.namelist():
-                unsupported_items.append(
-                    {
-                        "formula_id": record.get("formula_id", formula_id),
-                        "reason": "missing-embedding-target",
-                        "embedding_target": embedding_target,
-                    }
-                )
-                continue
-
             try:
+                payload_data = _read_record_payload(input_path, record, zip_file)
                 native_payload, result = convert_equation3_payload_to_mathml(
-                    zf.read(embedding_target),
+                    payload_data,
                     preferred_stream_name=str(provenance.get("payload_stream_name") or "") or None,
                 )
                 target_path = canonical_dir / f"{formula_id}.xml"
@@ -229,6 +261,9 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
                     "property_signals": property_signals,
                 }
             )
+    finally:
+        if zip_file is not None:
+            zip_file.close()
 
     canonical_count = len(canonical_items)
     expected_count = int(step.formula_count or len(records))
@@ -263,7 +298,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
             ),
             "not_accepted": (
                 "Universal Equation Editor 3.0 support.",
-                "Legacy .doc direct ingestion.",
+                "Layout/order fidelity for every legacy .doc object arrangement.",
                 "Public redistribution eligibility for research-control samples.",
                 "Word visual fill-back or DOCX-route deliverability.",
             ),
