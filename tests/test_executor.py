@@ -282,7 +282,7 @@ def test_dry_run_registry_covers_all_source_line_providers() -> None:
     assert providers == {"mathtype", "omml", "equation3", "axmath", "odf"}
     by_provider = {step["provider"]: step for step in report["steps"]}
     assert by_provider["mathtype"]["canonical_target"]["target_format"] == "canonical-mathml"
-    assert by_provider["equation3"]["canonical_target"]["contract_status"] == "fixture-gated"
+    assert by_provider["equation3"]["canonical_target"]["contract_status"] == "implemented-limited"
     assert by_provider["axmath"]["canonical_target"]["contract_status"] == "export-gated"
     assert by_provider["equation3"]["actions"][0]["runner"] == "internal-equation3-probe"
     assert by_provider["axmath"]["actions"][0]["runner"] == "axmath-route-gate"

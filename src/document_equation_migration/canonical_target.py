@@ -104,17 +104,25 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
     SourceFamily.EQUATION_EDITOR_3_OLE: _contract(
         source_family=SourceFamily.EQUATION_EDITOR_3_OLE.value,
         source_line="equation-editor-3",
-        contract_status="fixture-gated",
-        conversion_claim=False,
-        binding="equation3-mtef-v3-to-canonical-mathml-candidate",
-        expected_artifacts=("blocker-record.json",),
+        contract_status="implemented-limited",
+        conversion_claim=True,
+        binding="internal-equation3-mtef-v3-to-canonical-mathml-limited",
+        expected_artifacts=(
+            "canonical-mathml/*.xml",
+            "canonicalization-summary.json",
+            "validation-evidence.json",
+        ),
         required_evidence=(
-            "stronger Equation Editor 3.0 fixtures",
+            "Equation.3 source identity and non-MathType provenance",
             "MTEF v3 payload extraction evidence",
-            "fixture-backed canonical MathML conversion output",
+            "canonical MathML conversion output for the supported observed-structure MTEF v3 slice",
+            "formula-count parity between detected Equation3 objects and accepted canonical MathML artifacts",
+            "source-to-canonical provenance for every accepted artifact",
         ),
         notes=(
-            "Do not claim conversion until fixture-backed MTEF v3 evidence exists.",
+            "The internal binding is limited to the currently implemented MTEF v3 script/character structures.",
+            "Do not claim universal Equation Editor 3.0 support or legacy .doc direct ingestion from this limited binding.",
+            "Do not count Equation.DSMT* / MathType-marked MTEF3 material as Equation Editor 3.0 evidence.",
         ),
     ),
     SourceFamily.AXMATH_OLE: _contract(

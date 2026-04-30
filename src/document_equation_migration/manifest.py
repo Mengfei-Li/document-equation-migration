@@ -34,6 +34,8 @@ class ProvenanceRecord:
     ole_stream_names: list[str] = field(default_factory=list)
     raw_payload_status: str = "unknown"
     raw_payload_sha256: str = ""
+    payload_stream_name: str = ""
+    ascii_markers: list[str] = field(default_factory=list)
     transform_chain: list[str] = field(default_factory=list)
     generator_raw: str = ""
     generator_id: str = ""

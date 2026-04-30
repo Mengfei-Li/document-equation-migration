@@ -1,5 +1,7 @@
 import json
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import pytest
 
@@ -10,12 +12,16 @@ from document_equation_migration.executor.equation3 import (
     execute_equation3_step,
 )
 from document_equation_migration.executor.model import DryRunContext, ExecutionContext
+from document_equation_migration.equation3_mtef import EQNOLEFILEHDR_SIZE, local_name
 
 
-def _equation3_step(*, source_family: str = "equation-editor-3-ole") -> ExecutionStep:
+FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "equation_editor_3_ole"
+
+
+def _equation3_step(*, source_family: str = "equation-editor-3-ole", formula_count: int = 2) -> ExecutionStep:
     return ExecutionStep(
         source_family=source_family,
-        formula_count=2,
+        formula_count=formula_count,
         route_kind="primary-candidate",
         confidence_policy="medium",
         requires_manual_review=True,
@@ -63,6 +69,45 @@ def _execution_context(tmp_path: Path) -> ExecutionContext:
     )
 
 
+def _typeface_byte(typeface: int) -> int:
+    return (typeface - 128) % 256
+
+
+def _char(codepoint: int, *, typeface: int = 3, options: int = 1) -> bytes:
+    return bytes([(options << 4) | 2, _typeface_byte(typeface), codepoint & 0xFF, codepoint >> 8])
+
+
+def _subscript(slot: bytes) -> bytes:
+    return b"\x03\x0f\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
+
+
+def _supported_equation_native_stream() -> bytes:
+    expression = (
+        b"\x0a"
+        + b"\x01"
+        + _char(ord("b"))
+        + _subscript(_char(ord("k")))
+        + b"\x0a"
+        + _char(ord("="), typeface=6, options=0)
+        + _char(ord("a"))
+        + _subscript(_char(ord("k")))
+        + b"\x00"
+        + b"\x00"
+    )
+    return bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+
+def _write_supported_equation3_docx(path: Path) -> None:
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", (FIXTURE_ROOT / "document_equation3.xml").read_text(encoding="utf-8"))
+        zf.writestr(
+            "word/_rels/document.xml.rels",
+            (FIXTURE_ROOT / "document_equation3.rels.xml").read_text(encoding="utf-8"),
+        )
+        zf.writestr("word/embeddings/oleObject1.bin", _supported_equation_native_stream())
+        zf.writestr("word/media/image1.wmf", b"WMF-SYNTHETIC")
+
+
 def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Path) -> None:
     reports = build_equation3_dry_run_reports(_equation3_step(), _dry_run_context(tmp_path))
 
@@ -76,12 +121,13 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[0].status == "ready"
     assert reports[0].runner == "internal-equation3-probe"
     assert reports[0].argv[0] == "probe-equation3-evidence"
-    assert "fixture-backed canonical MathML" in "\n".join(reports[0].notes)
-    assert reports[1].supported is False
-    assert reports[1].status == "manual-gate"
-    assert "fixture admissibility checklist" in "\n".join(reports[1].notes)
-    assert reports[2].status == "manual-gate"
-    assert reports[3].status == "review-gated"
+    assert "limited observed MTEF v3" in "\n".join(reports[0].notes)
+    assert reports[1].supported is True
+    assert reports[1].status == "ready"
+    assert reports[1].runner == "internal-equation3-mtef-v3-limited"
+    assert "not a universal Equation Editor 3.0 converter claim" in "\n".join(reports[1].notes)
+    assert reports[2].status == "skipped-until-needed"
+    assert reports[3].status == "skipped-downstream"
 
     combined_notes = "\n".join("\n".join(report.notes) for report in reports)
     assert "No concrete dry-run binding is registered" not in combined_notes
@@ -147,10 +193,47 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
     assert blocker_record["actions"][3]["supported"] is False
 
     combined_notes = "\n".join("\n".join(report.notes) for report in reports)
-    assert "No payload conversion" in combined_notes
-    assert "fixture admissibility requirements" in combined_notes
+    assert "MTEF v3 conversion did not satisfy" in combined_notes
+    assert "gate record only" in combined_notes
     assert "Blocker record written to" in combined_notes
     assert "deliverable conversion proof" in combined_notes
+
+
+def test_equation3_execute_writes_limited_canonical_mathml_for_supported_payload(tmp_path: Path) -> None:
+    input_path = tmp_path / "supported-equation3.docx"
+    _write_supported_equation3_docx(input_path)
+    context = ExecutionContext(
+        workspace_root=str(tmp_path),
+        execution_plan_path=str(tmp_path / "execution-plan.json"),
+        input_path=str(input_path),
+        output_dir=str(tmp_path / "out"),
+    )
+
+    reports = execute_equation3_step(_equation3_step(formula_count=1), context)
+
+    assert [report.status for report in reports] == [
+        "completed",
+        "completed",
+        "skipped-not-needed",
+        "skipped-downstream",
+    ]
+    assert all(report.supported for report in reports)
+    output_root = tmp_path / "out" / "equation-editor-3-ole"
+    assert not (output_root / "blocker-record.json").exists()
+    summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
+    assert summary["gate_status"] == "passed-limited"
+    assert summary["limited_conversion_claim"] is True
+    assert summary["general_converter_claim"] is False
+    assert summary["deliverability_claim"] is False
+    assert summary["canonical_mathml_count"] == 1
+    assert summary["formula_count_parity"] == "passed"
+    assert summary["source_to_canonical_provenance"][0]["preservation_status"] == (
+        "converted-equation3-mtef-v3-to-canonical-mathml-limited"
+    )
+    canonical_path = output_root / "canonical-mathml" / "equation3-canonical-0001.xml"
+    root = ET.parse(canonical_path).getroot()
+    assert local_name(root.tag) == "math"
+    assert "".join(root.itertext()) == "bk=ak"
 
 
 def test_equation3_provider_rejects_wrong_source_family(tmp_path: Path) -> None:

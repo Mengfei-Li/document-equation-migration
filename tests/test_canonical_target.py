@@ -5,7 +5,7 @@ def test_canonical_mathml_contract_covers_source_lines() -> None:
     expected_status = {
         "mathtype-ole": "external-tool-gated",
         "omml-native": "implemented-basic",
-        "equation-editor-3-ole": "fixture-gated",
+        "equation-editor-3-ole": "implemented-limited",
         "axmath-ole": "export-gated",
         "odf-native": "implemented",
         "libreoffice-transformed": "bridge-review-gated",

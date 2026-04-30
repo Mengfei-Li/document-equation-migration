@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
+from ..canonical_mathml_evidence import mathml_property_signals, property_summary, sha256_text
 from ..canonical_target import canonical_mathml_contract_for_source_family
+from ..detectors.equation_editor_3_ole import detect_equation_editor_3_ole
+from ..equation3_mtef import Equation3MtefError, convert_equation3_payload_to_mathml, local_name
 from ..execution_plan.model import ExecutionStep
 from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, ExecutionContext
 
@@ -11,6 +16,8 @@ from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, Exe
 SOURCE_FAMILY = "equation-editor-3-ole"
 RUNNER = "internal-equation3-probe"
 BLOCKER_RECORD_FILENAME = "blocker-record.json"
+CANONICALIZATION_SUMMARY_FILENAME = "canonicalization-summary.json"
+VALIDATION_EVIDENCE_FILENAME = "validation-evidence.json"
 
 
 def equation3_fixture_admissibility_requirements() -> dict[str, object]:
@@ -51,7 +58,10 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
             },
             {
                 "id": "canonical-output",
-                "description": "A conversion attempt emits valid canonical MathML artifacts with formula-count parity.",
+                "description": (
+                    "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
+                    "The current internal converter is limited to the observed MTEF v3 script/character structures."
+                ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
                     "canonicalization-summary.json",
@@ -85,6 +95,19 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
             "Conversion report keeps provenance for every source formula.",
             "DOCX/Word validation is attempted only after canonical conversion evidence exists.",
         ],
+        "current_productized_slice": {
+            "status": "implemented-limited",
+            "supported_mtef_version": 3,
+            "supported_records": [
+                "slot",
+                "char",
+                "tmpl script templates: tmSUP, tmSUB, tmSUBSUP",
+                "full/sub/sub2 placeholder markers",
+                "font/size/ruler/embellishment records as ignored formatting metadata",
+            ],
+            "unsupported_records": ["matrix", "unknown template selectors", "unparsed trailing bytes"],
+            "general_converter_claim": False,
+        },
     }
 
 
@@ -100,6 +123,168 @@ def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def _canonicalization_summary_path(output_root: Path) -> Path:
+    return output_root / CANONICALIZATION_SUMMARY_FILENAME
+
+
+def _validation_evidence_path(output_root: Path) -> Path:
+    return output_root / VALIDATION_EVIDENCE_FILENAME
+
+
+def _canonical_mathml_dir(output_root: Path) -> Path:
+    return output_root / "canonical-mathml"
+
+
+def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionContext) -> dict[str, object]:
+    input_path = Path(context.input_path)
+    output_root = _execution_output_root(context)
+    canonical_dir = _canonical_mathml_dir(output_root)
+    canonical_dir.mkdir(parents=True, exist_ok=True)
+
+    records = detect_equation_editor_3_ole(input_path)
+    canonical_items: list[dict[str, object]] = []
+    unsupported_items: list[dict[str, object]] = []
+
+    with zipfile.ZipFile(input_path) as zf:
+        for index, record in enumerate(records, start=1):
+            formula_id = f"equation3-canonical-{index:04d}"
+            embedding_target = str(record.get("embedding_target") or "")
+            provenance = record.get("provenance", {})
+            source_specific = record.get("source_specific", {}).get("equation_editor_3", {})
+
+            if record.get("source_role") != "native-source":
+                unsupported_items.append(
+                    {
+                        "formula_id": record.get("formula_id", formula_id),
+                        "reason": "not-native-source",
+                        "source_role": record.get("source_role"),
+                    }
+                )
+                continue
+            if source_specific.get("mtef_version") != 3:
+                unsupported_items.append(
+                    {
+                        "formula_id": record.get("formula_id", formula_id),
+                        "reason": "unsupported-mtef-version",
+                        "mtef_version": source_specific.get("mtef_version"),
+                    }
+                )
+                continue
+            if not embedding_target or embedding_target not in zf.namelist():
+                unsupported_items.append(
+                    {
+                        "formula_id": record.get("formula_id", formula_id),
+                        "reason": "missing-embedding-target",
+                        "embedding_target": embedding_target,
+                    }
+                )
+                continue
+
+            try:
+                native_payload, result = convert_equation3_payload_to_mathml(
+                    zf.read(embedding_target),
+                    preferred_stream_name=str(provenance.get("payload_stream_name") or "") or None,
+                )
+                target_path = canonical_dir / f"{formula_id}.xml"
+                target_path.write_text(result.mathml_text, encoding="utf-8")
+                root = ET.fromstring(result.mathml_text)
+                if local_name(root.tag) != "math":
+                    raise Equation3MtefError("Canonical MathML root is not math.")
+            except Exception as exc:  # noqa: BLE001 - artifact gate must capture exact unsupported formula.
+                unsupported_items.append(
+                    {
+                        "formula_id": record.get("formula_id", formula_id),
+                        "reason": f"{type(exc).__name__}: {exc}",
+                        "embedding_target": embedding_target,
+                    }
+                )
+                continue
+
+            mathml_text = target_path.read_text(encoding="utf-8")
+            property_signals = mathml_property_signals(root)
+            canonical_items.append(
+                {
+                    "formula_id": formula_id,
+                    "source_formula_id": record.get("formula_id", ""),
+                    "doc_part_path": record.get("doc_part_path", ""),
+                    "relationship_id": record.get("relationship_id", ""),
+                    "embedding_target": embedding_target,
+                    "payload_stream_name": native_payload.stream_name,
+                    "raw_payload_sha256": provenance.get("raw_payload_sha256") or native_payload.source_stream_sha256,
+                    "equation_native_sha256": native_payload.equation_native_sha256,
+                    "mtef_payload_sha256": result.mtef_payload_sha256,
+                    "canonical_artifact_path": str(target_path),
+                    "canonical_sha256": sha256_text(mathml_text),
+                    "preservation_status": "converted-equation3-mtef-v3-to-canonical-mathml-limited",
+                    "mtef_version": result.mtef_version,
+                    "mtef_product": result.product,
+                    "mtef_product_version": result.product_version,
+                    "mtef_product_subversion": result.product_subversion,
+                    "record_counts": result.record_counts,
+                    "template_selector_counts": result.template_selector_counts,
+                    "parsed_bytes": result.parsed_bytes,
+                    "mtef_payload_bytes": result.mtef_payload_bytes,
+                    "property_signals": property_signals,
+                }
+            )
+
+    canonical_count = len(canonical_items)
+    expected_count = int(step.formula_count or len(records))
+    unsupported_count = len(unsupported_items)
+    formula_count_parity = "passed" if expected_count == canonical_count and unsupported_count == 0 else "failed"
+    gate_status = "passed-limited" if canonical_count > 0 and formula_count_parity == "passed" else "blocked-canonical-artifact"
+
+    summary = {
+        "artifact_type": "equation3-canonicalization-summary",
+        "source_family": SOURCE_FAMILY,
+        "target_format": "canonical-mathml",
+        "target_stage": "equation3-mtef-v3-to-canonical-mathml-limited",
+        "gate_status": gate_status,
+        "limited_conversion_claim": gate_status == "passed-limited",
+        "general_converter_claim": False,
+        "deliverability_claim": False,
+        "word_visual_fill_back_claim": False,
+        "input_path": context.input_path,
+        "detected_formula_count": len(records),
+        "expected_formula_count": expected_count,
+        "canonical_mathml_count": canonical_count,
+        "unsupported_fragment_count": unsupported_count,
+        "formula_count_parity": formula_count_parity,
+        "canonical_mathml_dir": str(canonical_dir),
+        "source_to_canonical_provenance": canonical_items,
+        "unsupported_fragments": unsupported_items,
+        "property_summary": property_summary(canonical_items),
+        "supported_slice": equation3_fixture_admissibility_requirements()["current_productized_slice"],
+        "claim_boundary": {
+            "accepted": (
+                "MTEF v3 Equation Native payloads using the implemented script/character slice can be converted to canonical MathML.",
+            ),
+            "not_accepted": (
+                "Universal Equation Editor 3.0 support.",
+                "Legacy .doc direct ingestion.",
+                "Public redistribution eligibility for research-control samples.",
+                "Word visual fill-back or DOCX-route deliverability.",
+            ),
+        },
+    }
+    _write_json(_canonicalization_summary_path(output_root), summary)
+    _write_json(
+        _validation_evidence_path(output_root),
+        {
+            "artifact_type": "equation3-validation-evidence",
+            "source_family": SOURCE_FAMILY,
+            "status": gate_status,
+            "canonicalization_summary_path": str(_canonicalization_summary_path(output_root)),
+            "canonical_mathml_count": canonical_count,
+            "unsupported_fragment_count": unsupported_count,
+            "formula_count_parity": formula_count_parity,
+            "property_summary": summary["property_summary"],
+            "claim_boundary": summary["claim_boundary"],
+        },
+    )
+    return summary
 
 
 def _action_summaries(step: ExecutionStep) -> tuple[dict[str, object], ...]:
@@ -166,7 +351,12 @@ def _action_summaries(step: ExecutionStep) -> tuple[dict[str, object], ...]:
     return tuple(summaries)
 
 
-def _write_blocker_record(step: ExecutionStep, context: ExecutionContext) -> Path:
+def _write_blocker_record(
+    step: ExecutionStep,
+    context: ExecutionContext,
+    *,
+    conversion_attempt: dict[str, object] | None = None,
+) -> Path:
     output_root = _execution_output_root(context)
     blocker_record_path = output_root / BLOCKER_RECORD_FILENAME
     return _write_json(
@@ -195,6 +385,7 @@ def _write_blocker_record(step: ExecutionStep, context: ExecutionContext) -> Pat
                 "signals": ["prog-id", "class-id", "eqnolefilehdr", "mtef-v3-header"],
             },
             "actions": list(_action_summaries(step)),
+            "conversion_attempt": conversion_attempt or {},
         },
     )
 
@@ -224,9 +415,9 @@ def _probe_dry_run_report(
         ),
         cwd=context.workspace_root,
         notes=(
-            "Supported probe skeleton only: confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
-            "This action does not claim conversion readiness or deliverable Word output.",
-            "Next stage requires a fixture-backed canonical MathML conversion attempt that satisfies the blocker checklist.",
+            "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
+            "The internal converter can now attempt the limited observed MTEF v3 script/character slice.",
+            "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
     )
@@ -303,31 +494,62 @@ def build_equation3_dry_run_reports(
             continue
 
         if action_id == "attempt-mtef-conversion":
+            output_root = _dry_run_output_root(context)
             reports.append(
-                _manual_gate_dry_run_report(
-                    action_id,
-                    action.description,
-                    True,
-                    context,
-                    note="MTEF v3 conversion remains a manual gate until native payload fixtures are strengthened.",
+                DryRunActionReport(
+                    action_id=action_id,
+                    description=action.description,
+                    blocking=action.blocking,
+                    supported=True,
+                    status="ready",
+                    runner="internal-equation3-mtef-v3-limited",
+                    argv=(
+                        "convert-equation3-mtef-v3",
+                        "--input",
+                        "<execution-plan-input>",
+                        "--output-dir",
+                        str(output_root),
+                    ),
+                    cwd=context.workspace_root,
+                    notes=(
+                        "Attempts canonical MathML conversion for the implemented MTEF v3 script/character slice.",
+                        "Unsupported records are reported as canonical artifact blockers instead of guessed.",
+                        "This is not a universal Equation Editor 3.0 converter claim.",
+                    ),
                 )
             )
             continue
 
         if action_id == "fallback-manual-triage":
             reports.append(
-                _manual_gate_dry_run_report(
-                    action_id,
-                    action.description,
-                    True,
-                    context,
-                    note="Ambiguous or incomplete Equation Editor 3.0 evidence must stay in manual triage.",
+                DryRunActionReport(
+                    action_id=action_id,
+                    description=action.description,
+                    blocking=False,
+                    supported=True,
+                    status="skipped-until-needed",
+                    runner="manual",
+                    cwd=context.workspace_root,
+                    notes=("Manual triage is used only if MTEF parsing or canonical validation is blocked.",),
                 )
             )
             continue
 
         if action_id == "word-roundtrip-validation":
-            reports.append(_review_gated_dry_run_report(action_id, action.description, True, context))
+            reports.append(
+                DryRunActionReport(
+                    action_id=action_id,
+                    description=action.description,
+                    blocking=False,
+                    supported=True,
+                    status="skipped-downstream",
+                    runner="manual-validation",
+                    cwd=context.workspace_root,
+                    notes=(
+                        "Word roundtrip validation is downstream of the canonical MathML target and is not run in this source-core step.",
+                    ),
+                )
+            )
             continue
 
         reports.append(
@@ -371,9 +593,9 @@ def _probe_execution_report(
         cwd=context.workspace_root,
         output_paths=(str(output_path),),
         notes=(
-            "Execution is intentionally limited to an evidence/probe skeleton for Equation Editor 3.0.",
-            "No payload conversion, OMML replacement, or deliverable Word artifact is produced by this provider.",
-            "The blocker record lists the exact fixture admissibility requirements for the next canonical MathML stage.",
+            "Execution probes Equation.3 source identity and MTEF v3 header evidence.",
+            "Payload conversion is handled by the limited canonical MathML action.",
+            "No OMML replacement or deliverable Word artifact is produced by this provider.",
             f"Blocker record written to {output_path}.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -438,7 +660,21 @@ def execute_equation3_step(
     if step.source_family != SOURCE_FAMILY:
         raise ValueError(f"Equation Editor 3.0 executor cannot handle source_family={step.source_family!r}.")
 
-    blocker_record_path = _write_blocker_record(step, context)
+    conversion_summary: dict[str, object] | None = None
+    conversion_error = ""
+    try:
+        conversion_summary = _canonicalize_detected_equation3(step, context)
+    except Exception as exc:  # noqa: BLE001 - convert attempt is reported as a gate, not raised.
+        conversion_error = f"{type(exc).__name__}: {exc}"
+
+    conversion_passed = bool(conversion_summary and conversion_summary.get("gate_status") == "passed-limited")
+    blocker_record_path: Path | None = None
+    if not conversion_passed:
+        blocker_record_path = _write_blocker_record(
+            step,
+            context,
+            conversion_attempt=conversion_summary or {"status": "failed-before-summary", "error": conversion_error},
+        )
 
     if not step.actions:
         return (
@@ -448,7 +684,7 @@ def execute_equation3_step(
                 True,
                 context,
                 note="Manual triage is required before Equation Editor 3.0 execution.",
-                output_path=blocker_record_path,
+                output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
             ),
         )
 
@@ -457,52 +693,136 @@ def execute_equation3_step(
         action_id = action.action_id
         if action_id == "probe-header-and-classid":
             reports.append(
-                _probe_execution_report(
-                    step,
-                    action_id,
-                    action.description,
-                    context,
-                    output_path=blocker_record_path,
+                ActionExecutionReport(
+                    action_id=action_id,
+                    description=action.description,
+                    blocking=False,
+                    supported=True,
+                    status="completed" if conversion_passed else "review-gated",
+                    runner=RUNNER,
+                    argv=(
+                        "probe-equation3-evidence",
+                        "--input",
+                        context.input_path,
+                        "--execution-plan",
+                        context.execution_plan_path,
+                        "--output-dir",
+                        str(_execution_output_root(context)),
+                    ),
+                    cwd=context.workspace_root,
+                    output_paths=(
+                        str(_canonicalization_summary_path(_execution_output_root(context)))
+                        if conversion_passed
+                        else str(blocker_record_path),
+                    ),
+                    notes=(
+                        "Equation3 source identity and MTEF v3 evidence were evaluated.",
+                        f"Formula count from execution plan: {step.formula_count}.",
+                    ),
                 )
             )
             continue
 
         if action_id == "attempt-mtef-conversion":
-            reports.append(
-                _manual_gate_execution_report(
-                    action_id,
-                    action.description,
-                    True,
-                    context,
-                    note="MTEF v3 conversion is intentionally not executable until real Equation.3 fixtures are strengthened.",
-                    output_path=blocker_record_path,
+            if conversion_passed:
+                output_root = _execution_output_root(context)
+                reports.append(
+                    ActionExecutionReport(
+                        action_id=action_id,
+                        description=action.description,
+                        blocking=False,
+                        supported=True,
+                        status="completed",
+                        runner="internal-equation3-mtef-v3-limited",
+                        argv=(
+                            "convert-equation3-mtef-v3",
+                            "--input",
+                            context.input_path,
+                            "--output-dir",
+                            str(output_root),
+                        ),
+                        cwd=context.workspace_root,
+                        output_paths=(
+                            str(_canonicalization_summary_path(output_root)),
+                            str(_validation_evidence_path(output_root)),
+                            str(_canonical_mathml_dir(output_root)),
+                        ),
+                        notes=(
+                            "Converted supported Equation3 MTEF v3 payloads to canonical MathML artifacts.",
+                            "Formula-count parity passed for this input.",
+                            "This remains a limited observed-structure converter, not universal Equation Editor 3.0 support.",
+                        ),
+                    )
                 )
-            )
+            else:
+                reports.append(
+                    _manual_gate_execution_report(
+                        action_id,
+                        action.description,
+                        True,
+                        context,
+                        note="MTEF v3 conversion did not satisfy the limited canonical MathML gate.",
+                        output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
+                    )
+                )
             continue
 
         if action_id == "fallback-manual-triage":
-            reports.append(
-                _manual_gate_execution_report(
-                    action_id,
-                    action.description,
-                    True,
-                    context,
-                    note="Manual triage remains required for ambiguous Equation Editor 3.0 evidence.",
-                    output_path=blocker_record_path,
+            if conversion_passed:
+                reports.append(
+                    ActionExecutionReport(
+                        action_id=action_id,
+                        description=action.description,
+                        blocking=False,
+                        supported=True,
+                        status="skipped-not-needed",
+                        runner="manual",
+                        cwd=context.workspace_root,
+                        output_paths=(str(_canonicalization_summary_path(_execution_output_root(context))),),
+                        notes=("Manual triage was not needed because the limited canonical MathML gate passed.",),
+                    )
                 )
-            )
+            else:
+                reports.append(
+                    _manual_gate_execution_report(
+                        action_id,
+                        action.description,
+                        True,
+                        context,
+                        note="Manual triage remains required for ambiguous or unsupported Equation Editor 3.0 evidence.",
+                        output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
+                    )
+                )
             continue
 
         if action_id == "word-roundtrip-validation":
-            reports.append(
-                _review_gated_execution_report(
-                    action_id,
-                    action.description,
-                    True,
-                    context,
-                    output_path=blocker_record_path,
+            if conversion_passed:
+                reports.append(
+                    ActionExecutionReport(
+                        action_id=action_id,
+                        description=action.description,
+                        blocking=False,
+                        supported=True,
+                        status="skipped-downstream",
+                        runner="manual-validation",
+                        cwd=context.workspace_root,
+                        output_paths=(str(_validation_evidence_path(_execution_output_root(context))),),
+                        notes=(
+                            "Word roundtrip validation is downstream of canonical MathML and was intentionally skipped.",
+                            "This is not a DOCX deliverability claim.",
+                        ),
+                    )
                 )
-            )
+            else:
+                reports.append(
+                    _review_gated_execution_report(
+                        action_id,
+                        action.description,
+                        True,
+                        context,
+                        output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
+                    )
+                )
             continue
 
         reports.append(
@@ -512,7 +832,7 @@ def execute_equation3_step(
                 True,
                 context,
                 note="Unrecognized Equation Editor 3.0 action; manual triage is required.",
-                output_path=blocker_record_path,
+                output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
             )
         )
 

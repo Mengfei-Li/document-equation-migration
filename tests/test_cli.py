@@ -19,6 +19,7 @@ DOCX_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 LIBREOFFICE_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "libreoffice_transformed"
+EQUATION3_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "equation_editor_3_ole"
 
 
 def make_docx(path: Path) -> None:
@@ -40,6 +41,22 @@ def build_odf_archive(fixture_dir: Path, suffix: str, output_dir: Path) -> Path:
                 continue
             zf.write(path, arcname=relative_path, compress_type=zipfile.ZIP_DEFLATED)
     return archive_path
+
+
+def build_equation3_docx(output_path: Path) -> None:
+    payload_hex = EQUATION3_FIXTURE_ROOT.joinpath("equation3_native_payload.hex").read_text(encoding="utf-8")
+    payload = bytes.fromhex("".join(payload_hex.split()))
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            "word/document.xml",
+            EQUATION3_FIXTURE_ROOT.joinpath("document_equation3.xml").read_text(encoding="utf-8"),
+        )
+        zf.writestr(
+            "word/_rels/document.xml.rels",
+            EQUATION3_FIXTURE_ROOT.joinpath("document_equation3.rels.xml").read_text(encoding="utf-8"),
+        )
+        zf.writestr("word/embeddings/oleObject1.bin", payload)
+        zf.writestr("word/media/image1.wmf", b"WMF-SYNTHETIC")
 
 
 def test_scan_writes_manifest_and_summary_files(tmp_path: Path) -> None:
@@ -83,6 +100,42 @@ def test_scan_writes_manifest_and_summary_files(tmp_path: Path) -> None:
     assert "Document Equation Migration scan summary" in summary
     assert "format: docx" in summary
     assert "formula_count: 1" in summary
+
+
+def test_scan_routes_equation3_without_detector_runtime_warning(tmp_path: Path) -> None:
+    input_path = tmp_path / "equation3.docx"
+    manifest_path = tmp_path / "out" / "manifest.json"
+    routing_path = tmp_path / "out" / "routing.json"
+    execution_plan_path = tmp_path / "out" / "execution-plan.json"
+    build_equation3_docx(input_path)
+
+    exit_code = main(
+        [
+            "scan",
+            str(input_path),
+            "--output",
+            str(manifest_path),
+            "--routing",
+            str(routing_path),
+            "--execution-plan",
+            str(execution_plan_path),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert payload["document"]["source_counts"] == {"equation-editor-3-ole": 1}
+    assert not any(
+        note.startswith("Detector runtime warning: document_equation_migration.detectors.equation_editor_3_ole")
+        for note in payload["document"]["notes"]
+    )
+    formula = payload["formulas"][0]
+    assert formula["provenance"]["payload_stream_name"] in ("", None)
+    assert formula["source_specific"]["equation_editor_3"]["mtef_version"] == 3
+    routing = json.loads(routing_path.read_text(encoding="utf-8"))
+    assert routing["recommended_sequence"] == ["equation-editor-3-ole"]
+    execution_plan = json.loads(execution_plan_path.read_text(encoding="utf-8"))
+    assert execution_plan["steps"][0]["provider"] == "equation3"
 
 
 def test_run_plan_writes_dry_run_execution_report(tmp_path: Path) -> None:
@@ -133,10 +186,10 @@ def test_run_plan_writes_dry_run_execution_report(tmp_path: Path) -> None:
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["mode"] == "dry-run"
     assert payload["step_count"] == 2
-    assert payload["runnable_step_count"] == 1
+    assert payload["runnable_step_count"] == 2
     assert payload["steps"][0]["provider"] == "mathtype"
     assert payload["steps"][0]["status"] == "runnable"
-    assert payload["steps"][1]["status"] == "manual-only"
+    assert payload["steps"][1]["status"] == "runnable"
 
 
 def test_scan_routes_libreoffice_bridge_as_transformed_source(tmp_path: Path) -> None:

@@ -66,10 +66,10 @@ def _manual_review_required(route_entry: RouteEntry) -> bool:
 def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
     requires_manual_review = _manual_review_required(route_entry)
     notes = [
-        "Equation Editor 3.0 is treated as a high-confidence primary candidate, but fixture validation is still pending."
+        "Equation Editor 3.0 has an internal limited MTEF v3 to canonical MathML path for supported script/character structures."
     ]
     if requires_manual_review:
-        notes.append("Preserve manual-review gate until fixture-backed conversion stability is verified.")
+        notes.append("Preserve manual-review gate for unsupported MTEF records, legacy .doc ingestion, and deliverability claims.")
 
     return ExecutionStep(
         source_family=SOURCE_FAMILY,
@@ -86,7 +86,7 @@ def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
             ),
             ExecutionAction(
                 action_id="attempt-mtef-conversion",
-                description="Attempt MTEF-oriented conversion as primary Equation Editor 3.0 path.",
+                description="Attempt limited MTEF v3 to canonical MathML conversion as the primary Equation Editor 3.0 path.",
                 blocking=True,
             ),
             ExecutionAction(
@@ -96,7 +96,7 @@ def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
             ),
             ExecutionAction(
                 action_id="word-roundtrip-validation",
-                description="Validate converted output through Word roundtrip before delivery.",
+                description="Validate downstream Word roundtrip only after canonical MathML evidence is accepted.",
                 blocking=True,
             ),
         ),
