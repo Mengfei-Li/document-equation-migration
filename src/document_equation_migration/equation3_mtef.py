@@ -16,11 +16,15 @@ except ImportError:  # pragma: no cover - package dependency is declared, this i
 EQNOLEFILEHDR_SIZE = 28
 MATHML_NS = "http://www.w3.org/1998/Math/MathML"
 CONTROL_STREAMS = {"\x01CompObj", "\x01Ole", "\x03ObjInfo"}
-SCRIPT_SELECTOR = {
-    0: "tmSUP",
-    1: "tmSUB",
-    2: "tmSUBSUP",
+TEMPLATE_SELECTOR = {
+    (13, 0): "tmROOT",
+    (14, 0): "tmFRACT",
+    (14, 1): "tmFRACT_SMALL",
+    (15, 0): "tmSUP",
+    (15, 1): "tmSUB",
+    (15, 2): "tmSUBSUP",
 }
+BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}")
 
 ET.register_namespace("", MATHML_NS)
@@ -234,7 +238,7 @@ class Mtef3Parser:
 
             if record_type == 3:
                 template = self.parse_template()
-                base = output.pop() if output else _empty_mrow()
+                base = output.pop() if template[0] in BASE_CONSUMING_TEMPLATES and output else _empty_mrow()
                 output.append(self.apply_template(base, template[0], template[1]))
                 continue
 
@@ -268,7 +272,7 @@ class Mtef3Parser:
         selector_raw = self.read_u8()
         variation_raw = self.read_u8()
         self.read_u8()  # template_specific_options
-        selector = SCRIPT_SELECTOR.get(variation_raw) if selector_raw == 15 else None
+        selector = TEMPLATE_SELECTOR.get((selector_raw, variation_raw))
         if selector is None:
             raise Equation3MtefError(
                 f"Unsupported template selector={selector_raw} variation={variation_raw} at offset {self.offset - 3}."
@@ -317,7 +321,19 @@ class Mtef3Parser:
             node.append(_mrow(slots[0] if slots else []))
             node.append(_mrow(slots[1] if len(slots) > 1 else []))
             return node
-        raise Equation3MtefError(f"Unsupported script template {selector}.")
+        if selector == "tmROOT":
+            node = _mathml_node("msqrt")
+            radicand = slots[-1] if slots else []
+            node.append(_mrow(radicand))
+            return node
+        if selector in {"tmFRACT", "tmFRACT_SMALL"}:
+            node = _mathml_node("mfrac")
+            if selector == "tmFRACT_SMALL":
+                node.set("data-equation3-fraction-size", "small")
+            node.append(_mrow(slots[0] if slots else []))
+            node.append(_mrow(slots[1] if len(slots) > 1 else []))
+            return node
+        raise Equation3MtefError(f"Unsupported template {selector}.")
 
     def skip_nudge(self) -> None:
         small_dx = self.read_i8()
