@@ -65,7 +65,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "id": "canonical-output",
                 "description": (
                     "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
-                    "The current internal converter is limited to the observed MTEF v3 script, fraction, and character structures."
+                    "The current internal converter is limited to the observed and synthetic-covered MTEF v3 script, "
+                    "root, fraction, bar, fence, and character structures."
                 ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
@@ -111,8 +112,10 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "slot",
                 "char",
                 "tmpl script templates: tmSUP, tmSUB, tmSUBSUP",
-                "tmpl root templates: tmROOT",
+                "tmpl root templates: tmROOT, tmNTHROOT",
                 "tmpl fraction templates: tmFRACT, tmFRACT_SMALL",
+                "tmpl bar templates: tmUBAR, tmUBAR_DOUBLE, tmOBAR, tmOBAR_DOUBLE",
+                "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
                 "full/sub/sub2 placeholder markers",
                 "font/size/ruler records as ignored formatting metadata",
                 "embellishment records parsed; prime mapped to msup (others currently ignored)",
@@ -454,7 +457,7 @@ def _probe_dry_run_report(
         cwd=context.workspace_root,
         notes=(
             "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
-            "The internal converter can now attempt the limited observed MTEF v3 script, fraction, and character slice.",
+            "The internal converter can now attempt the limited MTEF v3 script, root, fraction, bar, fence, and character slice.",
             "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -550,7 +553,7 @@ def build_equation3_dry_run_reports(
                     ),
                     cwd=context.workspace_root,
                     notes=(
-                        "Attempts canonical MathML conversion for the implemented MTEF v3 script, fraction, and character slice.",
+                        "Attempts canonical MathML conversion for the implemented MTEF v3 script, root, fraction, bar, fence, and character slice.",
                         "Unsupported records are reported as canonical artifact blockers instead of guessed.",
                         "This is not a universal Equation Editor 3.0 converter claim.",
                     ),

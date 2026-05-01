@@ -58,6 +58,13 @@ def _overbar(main: bytes, *, variation: int = 0) -> bytes:
     return b"\x03\x11" + bytes([variation]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
 
 
+def _parbox(selector: int, main: bytes, *, variation: int = 0, include_fence_chars: bool = False) -> bytes:
+    fence_chars = b""
+    if include_fence_chars:
+        fence_chars = _char(ord("("), typeface=6, options=0) + _char(ord(")"), typeface=6, options=0)
+    return b"\x03" + bytes([selector, variation]) + b"\x00" + b"\x01" + main + b"\x00" + fence_chars + b"\x00"
+
+
 def _supported_equation_native_stream() -> bytes:
     expression = (
         b"\x0a"
@@ -191,6 +198,41 @@ def test_supported_mtef3_double_overbar_preserves_count_signal() -> None:
     assert overbar.attrib["data-equation3-bar-count"] == "2"
     assert "".join(overbar.itertext()) == "x\u203e\u203e"
     assert result.template_selector_counts["17:1:tmOBAR_DOUBLE"] == 1
+
+
+def test_supported_mtef3_parentheses_template_converts_to_mathml_fence_mrow() -> None:
+    expression = b"\x01" + _parbox(1, _char(ord("x"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mrow") >= 2
+    assert "".join(root.itertext()) == "(x)"
+    assert result.template_selector_counts["1:0:tmPAREN"] == 1
+
+
+def test_supported_mtef3_one_sided_bracket_template_preserves_side() -> None:
+    expression = b"\x01" + _parbox(3, _char(ord("x")), variation=2) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "x]"
+    assert result.template_selector_counts["3:2:tmBRACK_RIGHT"] == 1
+
+
+def test_supported_mtef3_parbox_accepts_explicit_fence_character_subobjects() -> None:
+    expression = b"\x01" + _parbox(1, _char(ord("x")), include_fence_chars=True) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "(x)"
+    assert result.record_counts["2"] == 3
+    assert result.template_selector_counts["1:0:tmPAREN"] == 1
 
 
 def test_supported_mtef3_char_embellishment_prime_converts_to_mathml() -> None:

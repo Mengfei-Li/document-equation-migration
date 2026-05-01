@@ -17,6 +17,26 @@ EQNOLEFILEHDR_SIZE = 28
 MATHML_NS = "http://www.w3.org/1998/Math/MathML"
 CONTROL_STREAMS = {"\x01CompObj", "\x01Ole", "\x03ObjInfo"}
 TEMPLATE_SELECTOR = {
+    (0, 0): "tmANGLE",
+    (0, 1): "tmANGLE_LEFT",
+    (0, 2): "tmANGLE_RIGHT",
+    (1, 0): "tmPAREN",
+    (1, 1): "tmPAREN_LEFT",
+    (1, 2): "tmPAREN_RIGHT",
+    (2, 0): "tmBRACE",
+    (2, 1): "tmBRACE_LEFT",
+    (2, 2): "tmBRACE_RIGHT",
+    (3, 0): "tmBRACK",
+    (3, 1): "tmBRACK_LEFT",
+    (3, 2): "tmBRACK_RIGHT",
+    (4, 0): "tmBAR",
+    (4, 1): "tmBAR_LEFT",
+    (4, 2): "tmBAR_RIGHT",
+    (5, 0): "tmDBAR",
+    (5, 1): "tmDBAR_LEFT",
+    (5, 2): "tmDBAR_RIGHT",
+    (6, 0): "tmFLOOR",
+    (7, 0): "tmCEILING",
     (13, 0): "tmROOT",
     (13, 1): "tmNTHROOT",
     (14, 0): "tmFRACT",
@@ -31,6 +51,28 @@ TEMPLATE_SELECTOR = {
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}")
+PARBOX_DELIMITERS = {
+    "tmANGLE": ("\u27e8", "\u27e9"),
+    "tmANGLE_LEFT": ("\u27e8", ""),
+    "tmANGLE_RIGHT": ("", "\u27e9"),
+    "tmPAREN": ("(", ")"),
+    "tmPAREN_LEFT": ("(", ""),
+    "tmPAREN_RIGHT": ("", ")"),
+    "tmBRACE": ("{", "}"),
+    "tmBRACE_LEFT": ("{", ""),
+    "tmBRACE_RIGHT": ("", "}"),
+    "tmBRACK": ("[", "]"),
+    "tmBRACK_LEFT": ("[", ""),
+    "tmBRACK_RIGHT": ("", "]"),
+    "tmBAR": ("|", "|"),
+    "tmBAR_LEFT": ("|", ""),
+    "tmBAR_RIGHT": ("", "|"),
+    "tmDBAR": ("\u2016", "\u2016"),
+    "tmDBAR_LEFT": ("\u2016", ""),
+    "tmDBAR_RIGHT": ("", "\u2016"),
+    "tmFLOOR": ("\u230a", "\u230b"),
+    "tmCEILING": ("\u2308", "\u2309"),
+}
 EMBELL_PRIME_TO_CHAR = {
     5: "\u2032",  # embPRIME
     6: "\u2033",  # embDPRIME
@@ -312,6 +354,14 @@ class Mtef3Parser:
                 else:
                     slots.append(self.parse_sequence_until_end())
                 continue
+            if record_type == 2:
+                self.read_i8() + 128
+                mt_code = self.read_mtef16()
+                node = _char_to_mathml(mt_code)
+                if options & 0x02:
+                    node = self.apply_embellishments(node, self.parse_embellishment_list())
+                slots.append([node])
+                continue
             raise Equation3MtefError(f"Unsupported template child record type {record_type} at offset {self.offset - 1}.")
 
     def parse_embellishment_list(self) -> list[int]:
@@ -350,6 +400,16 @@ class Mtef3Parser:
         return node
 
     def apply_template(self, base: ET.Element, selector: str, slots: list[list[ET.Element]]) -> ET.Element:
+        if selector in PARBOX_DELIMITERS:
+            left, right = PARBOX_DELIMITERS[selector]
+            node = _mathml_node("mrow")
+            if left:
+                node.append(_mathml_node("mo", left))
+            for child in slots[0] if slots else []:
+                node.append(child)
+            if right:
+                node.append(_mathml_node("mo", right))
+            return node
         if selector == "tmSUP":
             node = _mathml_node("msup")
             node.append(base)

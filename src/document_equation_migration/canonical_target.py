@@ -120,7 +120,7 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
             "source-to-canonical provenance for every accepted artifact",
         ),
         notes=(
-            "The internal binding is limited to the currently implemented MTEF v3 script, fraction, and character structures.",
+            "The internal binding is limited to the currently implemented MTEF v3 script, root, fraction, bar, fence, and character structures.",
             "Do not claim universal Equation Editor 3.0 support or legacy .doc direct ingestion from this limited binding.",
             "Do not count Equation.DSMT* / MathType-marked MTEF3 material as Equation Editor 3.0 evidence.",
         ),
