@@ -18,14 +18,24 @@ MATHML_NS = "http://www.w3.org/1998/Math/MathML"
 CONTROL_STREAMS = {"\x01CompObj", "\x01Ole", "\x03ObjInfo"}
 TEMPLATE_SELECTOR = {
     (13, 0): "tmROOT",
+    (13, 1): "tmNTHROOT",
     (14, 0): "tmFRACT",
     (14, 1): "tmFRACT_SMALL",
     (15, 0): "tmSUP",
     (15, 1): "tmSUB",
     (15, 2): "tmSUBSUP",
+    (16, 0): "tmUBAR",
+    (16, 1): "tmUBAR_DOUBLE",
+    (17, 0): "tmOBAR",
+    (17, 1): "tmOBAR_DOUBLE",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}")
+EMBELL_PRIME_TO_CHAR = {
+    5: "\u2032",  # embPRIME
+    6: "\u2033",  # embDPRIME
+    18: "\u2034",  # embTPRIME
+}
 
 ET.register_namespace("", MATHML_NS)
 
@@ -231,9 +241,10 @@ class Mtef3Parser:
             if record_type == 2:
                 self.read_i8() + 128
                 mt_code = self.read_mtef16()
-                output.append(_char_to_mathml(mt_code))
+                node = _char_to_mathml(mt_code)
                 if options & 0x02:
-                    self.parse_sequence_until_end()
+                    node = self.apply_embellishments(node, self.parse_embellishment_list())
+                output.append(node)
                 continue
 
             if record_type == 3:
@@ -253,7 +264,6 @@ class Mtef3Parser:
             if record_type == 5:
                 raise Equation3MtefError("Matrix records are outside the supported Equation3 MTEF v3 slice.")
             if record_type == 6:
-                self.read_u8()
                 self.read_u8()
                 continue
             if record_type == 7:
@@ -304,6 +314,41 @@ class Mtef3Parser:
                 continue
             raise Equation3MtefError(f"Unsupported template child record type {record_type} at offset {self.offset - 1}.")
 
+    def parse_embellishment_list(self) -> list[int]:
+        embells: list[int] = []
+        while True:
+            tag = self.read_u8()
+            options = tag >> 4
+            record_type = tag & 0x0F
+            self.record_counts[record_type] += 1
+
+            if record_type == 0:
+                return embells
+            if record_type in {10, 11, 12, 13, 14}:
+                continue
+            if options & 0x08:
+                self.skip_nudge()
+
+            if record_type != 6:
+                raise Equation3MtefError(
+                    f"Unsupported embellishment record type {record_type} at offset {self.offset - 1}."
+                )
+            embells.append(self.read_u8())
+
+    def apply_embellishments(self, base: ET.Element, embells: list[int]) -> ET.Element:
+        prime: str | None = None
+        for emb in (18, 6, 5):
+            if emb in embells:
+                prime = EMBELL_PRIME_TO_CHAR[emb]
+                break
+        if prime is None:
+            return base
+
+        node = _mathml_node("msup")
+        node.append(base)
+        node.append(_mathml_node("mo", prime))
+        return node
+
     def apply_template(self, base: ET.Element, selector: str, slots: list[list[ET.Element]]) -> ET.Element:
         if selector == "tmSUP":
             node = _mathml_node("msup")
@@ -326,12 +371,41 @@ class Mtef3Parser:
             radicand = slots[-1] if slots else []
             node.append(_mrow(radicand))
             return node
+        if selector == "tmNTHROOT":
+            node = _mathml_node("mroot")
+            index = slots[0] if slots else []
+            radicand = slots[1] if len(slots) > 1 else (slots[0] if slots else [])
+            node.append(_mrow(radicand))
+            node.append(_mrow(index))
+            return node
         if selector in {"tmFRACT", "tmFRACT_SMALL"}:
             node = _mathml_node("mfrac")
             if selector == "tmFRACT_SMALL":
                 node.set("data-equation3-fraction-size", "small")
             node.append(_mrow(slots[0] if slots else []))
             node.append(_mrow(slots[1] if len(slots) > 1 else []))
+            return node
+        if selector in {"tmUBAR", "tmUBAR_DOUBLE"}:
+            node = _mathml_node("munder")
+            node.set("accentunder", "true")
+            if selector == "tmUBAR_DOUBLE":
+                node.set("data-equation3-bar-count", "2")
+            node.append(_mrow(slots[0] if slots else []))
+            bar_text = "__" if selector == "tmUBAR_DOUBLE" else "_"
+            bar = _mathml_node("mo", bar_text)
+            bar.set("stretchy", "true")
+            node.append(bar)
+            return node
+        if selector in {"tmOBAR", "tmOBAR_DOUBLE"}:
+            node = _mathml_node("mover")
+            node.set("accent", "true")
+            if selector == "tmOBAR_DOUBLE":
+                node.set("data-equation3-bar-count", "2")
+            node.append(_mrow(slots[0] if slots else []))
+            bar_text = "\u203e\u203e" if selector == "tmOBAR_DOUBLE" else "\u203e"
+            bar = _mathml_node("mo", bar_text)
+            bar.set("stretchy", "true")
+            node.append(bar)
             return node
         raise Equation3MtefError(f"Unsupported template {selector}.")
 
