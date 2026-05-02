@@ -73,6 +73,7 @@ TEMPLATE_SELECTOR = {
     (42, 0): "tmINTOP_UPPER",
     (42, 1): "tmINTOP_LOWER",
     (42, 2): "tmINTOP_BOTH",
+    (43, 0): "tmSUMOP",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2192", "\u2211", "\u222b", "\u220f", "\u2210"}  # →, ∑, ∫, ∏, ∐
@@ -408,6 +409,8 @@ class Mtef3Parser:
         if len(trailing) == 2:
             return True
         if len(trailing) == 3 and all(byte == 0xFF for byte in trailing):
+            return True
+        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07"}:
             return True
         if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
             return True
@@ -811,6 +814,18 @@ class Mtef3Parser:
             node = _mathml_node("mover")
             node.append(_mrow(main))
             node.append(_mrow(upper))
+            return node
+        if selector == "tmSUMOP":
+            operator = _mathml_node("mo", "\u2211")
+            operator.set("largeop", "true")
+            operator.set("movablelimits", "true")
+            slot_items = [slot for slot in slots if slot]
+            if not slot_items:
+                return operator
+            node = _mathml_node("mrow")
+            node.append(operator)
+            for slot in slot_items:
+                node.append(_mrow(slot))
             return node
         if selector in BIGOP_TEMPLATES:
             if not slots:

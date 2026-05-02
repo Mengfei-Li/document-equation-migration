@@ -249,7 +249,15 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
 
 @pytest.mark.parametrize(
     "footer",
-    [b"\x7d", b"\x00\x7a\x00", b"\x74\x4a\x00", b"\xff\xff\xff", b"\x00" * 8 + b"\x09\x00\x00\x00"],
+    [
+        b"\x7d",
+        b"\x00\x7a\x00",
+        b"\x74\x4a\x00",
+        b"\xff\xff\xff",
+        b"\xef\xef\xef",
+        b"\x06\x00\x07",
+        b"\x00" * 8 + b"\x09\x00\x00\x00",
+    ],
 )
 def test_supported_mtef3_allows_observed_legacy_footers_after_end_record(footer: bytes) -> None:
     stream = _supported_equation_native_stream() + footer
@@ -832,6 +840,20 @@ def test_supported_mtef3_integral_operator_template_with_limits_uses_side_limits
     assert side_limits.attrib["data-equation3-limit-style"] == "integral"
     assert "".join(root.itertext()) == "\u222b01f"
     assert result.template_selector_counts["42:2:tmINTOP_BOTH"] == 1
+
+
+def test_supported_mtef3_sum_operator_template_converts_observed_standalone_sumop() -> None:
+    expression = b"\x0a\x01\x03\x2b\x00\x00\x11\x0b\x11\x01\x00\x0d\x01\x00\x00\x00\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    operator = next(node for node in root.iter() if local_name(node.tag) == "mo" and node.text == "\u2211")
+
+    assert operator.attrib["largeop"] == "true"
+    assert operator.attrib["movablelimits"] == "true"
+    assert "".join(root.itertext()) == "\u2211"
+    assert result.template_selector_counts["43:0:tmSUMOP"] == 1
 
 
 @pytest.mark.parametrize(

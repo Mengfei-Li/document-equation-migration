@@ -67,7 +67,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                     "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
                     "The current internal converter is limited to the observed and synthetic-covered MTEF v2/v3 script, "
                     "root, fraction, slash-fraction, bar, fence, limit, matrix, pile, "
-                    "BigOp (sum/integral/product/coproduct/integral-op), character structures, "
+                    "BigOp (sum/integral/product/coproduct/integral-op), standalone sum operator, character structures, "
                     "and narrow legacy post-END footers."
                 ),
                 "evidence_fields": (
@@ -121,6 +121,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
                 "tmpl limit templates: tmLIM_UPPER, tmLIM_LOWER, tmLIM_BOTH",
                 "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmISUM_LOWER, tmISUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH, tmIPROD_LOWER, tmIPROD_BOTH, tmCOPROD_NO_LIMITS, tmCOPROD_LOWER, tmCOPROD_BOTH, tmINTOP_UPPER, tmINTOP_LOWER, tmINTOP_BOTH",
+                "tmpl standalone operator templates: tmSUMOP",
                 "matrix records with supported line-based cells",
                 "pile records with supported line-based rows",
                 "full/sub/sub2 placeholder markers",
@@ -316,7 +317,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
         "supported_slice": equation3_fixture_admissibility_requirements()["current_productized_slice"],
         "claim_boundary": {
             "accepted": (
-                "MTEF v2/v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice can be converted to canonical MathML.",
+                "MTEF v2/v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice can be converted to canonical MathML.",
             ),
             "not_accepted": (
                 "Universal Equation Editor 3.0 support.",
@@ -473,7 +474,7 @@ def _probe_dry_run_report(
         cwd=context.workspace_root,
         notes=(
             "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v2/v3 evidence.",
-            "The internal converter can now attempt the limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
+            "The internal converter can now attempt the limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice.",
             "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -569,7 +570,7 @@ def build_equation3_dry_run_reports(
                     ),
                     cwd=context.workspace_root,
                     notes=(
-                        "Attempts canonical MathML conversion for the implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
+                        "Attempts canonical MathML conversion for the implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice.",
                         "Unsupported records are reported as canonical artifact blockers instead of guessed.",
                         "This is not a universal Equation Editor 3.0 converter claim.",
                     ),
