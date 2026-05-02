@@ -32,6 +32,16 @@ def _char_with_hat(codepoint: int) -> bytes:
     return _char(codepoint, options=2) + b"\x06\x09\x00"
 
 
+def _char_with_tilde(codepoint: int) -> bytes:
+    # CHAR record with xfEMBELL (0x2), followed by an EMBELL list containing embTILDE (8) and END (0).
+    return _char(codepoint, options=2) + b"\x06\x08\x00"
+
+
+def _char_with_overbar(codepoint: int) -> bytes:
+    # CHAR record with xfEMBELL (0x2), followed by an EMBELL list containing embOBAR (17) and END (0).
+    return _char(codepoint, options=2) + b"\x06\x11\x00"
+
+
 def _subscript(slot: bytes) -> bytes:
     return b"\x03\x0f\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
 
@@ -488,6 +498,30 @@ def test_supported_mtef3_char_embellishment_hat_converts_to_mathml() -> None:
 
     assert [local_name(node.tag) for node in root.iter()].count("mover") == 1
     assert "".join(root.itertext()) == "x^"
+    assert result.record_counts["6"] == 1
+
+
+def test_supported_mtef3_char_embellishment_tilde_converts_to_mathml() -> None:
+    expression = b"\x01" + _char_with_tilde(ord("x")) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mover") == 1
+    assert "".join(root.itertext()) == "x~"
+    assert result.record_counts["6"] == 1
+
+
+def test_supported_mtef3_char_embellishment_overbar_converts_to_mathml() -> None:
+    expression = b"\x01" + _char_with_overbar(ord("x")) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mover") == 1
+    assert "".join(root.itertext()) == "x\u203e"
     assert result.record_counts["6"] == 1
 
 

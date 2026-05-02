@@ -690,11 +690,23 @@ class Mtef3Parser:
     def apply_embellishments(self, base: ET.Element, embells: list[int]) -> ET.Element:
         node = base
 
-        if 9 in embells:
+        accent_map = {
+            8: ("~", False),  # embTILDE
+            9: ("^", False),  # embHAT
+            17: ("\u203e", True),  # embOBAR
+        }
+
+        for embell_id in dict.fromkeys(embells):
+            if embell_id not in accent_map:
+                continue
+            accent_text, stretchy = accent_map[embell_id]
             mover = _mathml_node("mover")
             mover.set("accent", "true")
             mover.append(node)
-            mover.append(_mathml_node("mo", "^"))
+            accent = _mathml_node("mo", accent_text)
+            if stretchy:
+                accent.set("stretchy", "true")
+            mover.append(accent)
             node = mover
 
         prime: str | None = None
