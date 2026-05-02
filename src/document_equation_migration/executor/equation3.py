@@ -66,7 +66,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "description": (
                     "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
                     "The current internal converter is limited to the observed and synthetic-covered MTEF v3 script, "
-                    "root, fraction, slash-fraction, bar, fence, matrix, BigOp (sum/integral), and character structures."
+                    "root, fraction, slash-fraction, bar, fence, limit, matrix, "
+                    "BigOp (sum/integral/product/coproduct/integral-op), and character structures."
                 ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
@@ -117,7 +118,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl slash-fraction templates: tmSLFRACT, tmSLFRACT_BASELINE, tmSLFRACT_SMALL",
                 "tmpl bar templates: tmUBAR, tmUBAR_DOUBLE, tmOBAR, tmOBAR_DOUBLE",
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
-                "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH",
+                "tmpl limit templates: tmLIM_UPPER, tmLIM_LOWER, tmLIM_BOTH",
+                "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmISUM_LOWER, tmISUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH, tmIPROD_LOWER, tmIPROD_BOTH, tmCOPROD_NO_LIMITS, tmCOPROD_LOWER, tmCOPROD_BOTH, tmINTOP_UPPER, tmINTOP_LOWER, tmINTOP_BOTH",
                 "matrix records with supported line-based cells",
                 "full/sub/sub2 placeholder markers",
                 "font/size/ruler records as ignored formatting metadata",
@@ -308,7 +310,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
         "supported_slice": equation3_fixture_admissibility_requirements()["current_productized_slice"],
         "claim_boundary": {
             "accepted": (
-                "MTEF v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, matrix, and character slice can be converted to canonical MathML.",
+                "MTEF v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, BigOp, and character slice can be converted to canonical MathML.",
             ),
             "not_accepted": (
                 "Universal Equation Editor 3.0 support.",
@@ -465,7 +467,7 @@ def _probe_dry_run_report(
         cwd=context.workspace_root,
         notes=(
             "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
-            "The internal converter can now attempt the limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, matrix, and character slice.",
+            "The internal converter can now attempt the limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, BigOp, and character slice.",
             "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -561,7 +563,7 @@ def build_equation3_dry_run_reports(
                     ),
                     cwd=context.workspace_root,
                     notes=(
-                        "Attempts canonical MathML conversion for the implemented MTEF v3 script, root, fraction, slash-fraction, bar, fence, matrix, and character slice.",
+                        "Attempts canonical MathML conversion for the implemented MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, BigOp, and character slice.",
                         "Unsupported records are reported as canonical artifact blockers instead of guessed.",
                         "This is not a universal Equation Editor 3.0 converter claim.",
                     ),

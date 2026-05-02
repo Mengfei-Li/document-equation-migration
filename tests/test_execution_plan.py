@@ -89,6 +89,8 @@ def test_build_execution_plan_uses_source_line_providers() -> None:
         "odf",
     ]
     assert all(item["actions"] for item in plan["steps"])
+    equation3_step = next(item for item in plan["steps"] if item["provider"] == "equation3")
+    assert "BigOp (sum/integral/product/coproduct/integral-op)" in "\n".join(equation3_step["notes"])
 
 
 def test_build_execution_plan_falls_back_for_unknown_source() -> None:

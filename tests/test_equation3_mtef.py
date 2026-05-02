@@ -129,6 +129,18 @@ def _bigop(
     )
 
 
+def _limit_template(
+    variation: int,
+    *,
+    main: bytes,
+    upper: bytes | None = None,
+    lower: bytes | None = None,
+) -> bytes:
+    lower_record = _line(lower) if lower is not None else _null_line()
+    upper_record = _line(upper) if upper is not None else _null_line()
+    return b"\x03\x27" + bytes([variation]) + b"\x00" + _line(main) + lower_record + upper_record + b"\x00"
+
+
 def _supported_equation_native_stream() -> bytes:
     expression = (
         b"\x0a"
@@ -514,3 +526,169 @@ def test_supported_mtef3_product_template_without_limits_converts_to_large_opera
     assert [local_name(node.tag) for node in root.iter()].count("munderover") == 0
     assert "".join(root.itertext()) == "\u220fa"
     assert result.template_selector_counts["31:2:tmPROD_NO_LIMITS"] == 1
+
+
+def test_supported_mtef3_integral_style_sum_template_uses_side_limits() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            30,
+            1,
+            main=_char(ord("a")),
+            upper=_char(ord("n")),
+            lower=_char(ord("i")) + _char(ord("="), typeface=6, options=0) + _char(ord("1")),
+            operator_codepoint=0x2211,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    side_limits = next(node for node in root.iter() if local_name(node.tag) == "msubsup")
+
+    assert side_limits.attrib["data-equation3-limit-style"] == "integral"
+    assert "".join(root.itertext()) == "\u2211i=1na"
+    assert result.template_selector_counts["30:1:tmISUM_BOTH"] == 1
+
+
+def test_supported_mtef3_integral_style_product_lower_limit_uses_side_limit() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            32,
+            0,
+            main=_char(ord("a")),
+            lower=_char(ord("i")),
+            operator_codepoint=0x220F,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    side_limit = next(node for node in root.iter() if local_name(node.tag) == "msub")
+
+    assert side_limit.attrib["data-equation3-limit-style"] == "integral"
+    assert "".join(root.itertext()) == "\u220fia"
+    assert result.template_selector_counts["32:0:tmIPROD_LOWER"] == 1
+
+
+def test_supported_mtef3_coproduct_template_without_limits_converts_to_large_operator() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            33,
+            2,
+            main=_char(ord("A")),
+            operator_codepoint=0x2210,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    operator = next(node for node in root.iter() if local_name(node.tag) == "mo" and node.text == "\u2210")
+
+    assert operator.attrib["largeop"] == "true"
+    assert operator.attrib["movablelimits"] == "true"
+    assert "".join(root.itertext()) == "\u2210A"
+    assert result.template_selector_counts["33:2:tmCOPROD_NO_LIMITS"] == 1
+
+
+def test_supported_mtef3_limit_template_with_lower_limit_converts_to_munder() -> None:
+    expression = (
+        b"\x01"
+        + _limit_template(
+            1,
+            main=_char(ord("l")) + _char(ord("i")) + _char(ord("m")),
+            lower=_char(ord("n")) + _char(ord("\u2192"), typeface=6, options=0) + _char(ord("0")),
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    limit = next(node for node in root.iter() if local_name(node.tag) == "munder")
+
+    assert "".join(limit[0].itertext()) == "lim"
+    assert "".join(limit[1].itertext()) == "n\u21920"
+    assert result.template_selector_counts["39:1:tmLIM_LOWER"] == 1
+
+
+def test_supported_mtef3_limit_template_with_upper_limit_converts_to_mover() -> None:
+    expression = (
+        b"\x01"
+        + _limit_template(
+            0,
+            main=_char(ord("m")) + _char(ord("a")) + _char(ord("x")),
+            upper=_char(ord("n")),
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    limit = next(node for node in root.iter() if local_name(node.tag) == "mover")
+
+    assert "".join(limit[0].itertext()) == "max"
+    assert "".join(limit[1].itertext()) == "n"
+    assert result.template_selector_counts["39:0:tmLIM_UPPER"] == 1
+
+
+def test_supported_mtef3_limit_template_with_both_limits_converts_to_munderover() -> None:
+    expression = (
+        b"\x01"
+        + _limit_template(
+            2,
+            main=_char(ord("l")) + _char(ord("i")) + _char(ord("m")),
+            upper=_char(ord("N")),
+            lower=_char(ord("n")),
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    limit = next(node for node in root.iter() if local_name(node.tag) == "munderover")
+
+    assert "".join(limit[0].itertext()) == "lim"
+    assert "".join(limit[1].itertext()) == "n"
+    assert "".join(limit[2].itertext()) == "N"
+    assert result.template_selector_counts["39:2:tmLIM_BOTH"] == 1
+
+
+def test_supported_mtef3_integral_operator_template_with_limits_uses_side_limits() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            42,
+            2,
+            main=_char(ord("f")),
+            upper=_char(ord("1")),
+            lower=_char(ord("0")),
+            operator_codepoint=0x222B,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    side_limits = next(node for node in root.iter() if local_name(node.tag) == "msubsup")
+
+    assert side_limits.attrib["data-equation3-limit-style"] == "integral"
+    assert "".join(root.itertext()) == "\u222b01f"
+    assert result.template_selector_counts["42:2:tmINTOP_BOTH"] == 1

@@ -54,15 +54,63 @@ TEMPLATE_SELECTOR = {
     (29, 0): "tmSUM_LOWER",
     (29, 1): "tmSUM_BOTH",
     (29, 2): "tmSUM_NO_LIMITS",
+    (30, 0): "tmISUM_LOWER",
+    (30, 1): "tmISUM_BOTH",
     (31, 0): "tmPROD_LOWER",
     (31, 1): "tmPROD_BOTH",
     (31, 2): "tmPROD_NO_LIMITS",
+    (32, 0): "tmIPROD_LOWER",
+    (32, 1): "tmIPROD_BOTH",
+    (33, 0): "tmCOPROD_LOWER",
+    (33, 1): "tmCOPROD_BOTH",
+    (33, 2): "tmCOPROD_NO_LIMITS",
+    (39, 0): "tmLIM_UPPER",
+    (39, 1): "tmLIM_LOWER",
+    (39, 2): "tmLIM_BOTH",
     (41, 0): "tmSLFRACT",
     (41, 1): "tmSLFRACT_BASELINE",
     (41, 2): "tmSLFRACT_SMALL",
+    (42, 0): "tmINTOP_UPPER",
+    (42, 1): "tmINTOP_LOWER",
+    (42, 2): "tmINTOP_BOTH",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
-OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2211", "\u222b"}  # ∑, ∫
+OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2192", "\u2211", "\u222b", "\u220f", "\u2210"}  # →, ∑, ∫, ∏, ∐
+BIGOP_TEMPLATES = {
+    "tmSINT_NO_LIMITS",
+    "tmSINT_LOWER",
+    "tmSINT_BOTH",
+    "tmSUM_NO_LIMITS",
+    "tmSUM_LOWER",
+    "tmSUM_BOTH",
+    "tmISUM_LOWER",
+    "tmISUM_BOTH",
+    "tmPROD_NO_LIMITS",
+    "tmPROD_LOWER",
+    "tmPROD_BOTH",
+    "tmIPROD_LOWER",
+    "tmIPROD_BOTH",
+    "tmCOPROD_NO_LIMITS",
+    "tmCOPROD_LOWER",
+    "tmCOPROD_BOTH",
+    "tmINTOP_UPPER",
+    "tmINTOP_LOWER",
+    "tmINTOP_BOTH",
+}
+INTEGRAL_STYLE_BIGOP_TEMPLATES = {
+    "tmISUM_LOWER",
+    "tmISUM_BOTH",
+    "tmIPROD_LOWER",
+    "tmIPROD_BOTH",
+    "tmINTOP_UPPER",
+    "tmINTOP_LOWER",
+    "tmINTOP_BOTH",
+}
+LIMIT_TEMPLATES = {
+    "tmLIM_UPPER",
+    "tmLIM_LOWER",
+    "tmLIM_BOTH",
+}
 PARBOX_DELIMITERS = {
     "tmANGLE": ("\u27e8", "\u27e9"),
     "tmANGLE_LEFT": ("\u27e8", ""),
@@ -597,17 +645,34 @@ class Mtef3Parser:
             bar.set("stretchy", "true")
             node.append(bar)
             return node
-        if selector in {
-            "tmSINT_NO_LIMITS",
-            "tmSINT_LOWER",
-            "tmSINT_BOTH",
-            "tmSUM_NO_LIMITS",
-            "tmSUM_LOWER",
-            "tmSUM_BOTH",
-            "tmPROD_NO_LIMITS",
-            "tmPROD_LOWER",
-            "tmPROD_BOTH",
-        }:
+        if selector in LIMIT_TEMPLATES:
+            if not slots:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing main slot.")
+            main = slots[0]
+            lower = slots[1] if len(slots) > 1 else []
+            upper = slots[2] if len(slots) > 2 else []
+            if selector.endswith("_BOTH"):
+                if not lower or not upper:
+                    raise Equation3MtefError(f"Unsupported {selector} template with missing limit slots.")
+                node = _mathml_node("munderover")
+                node.append(_mrow(main))
+                node.append(_mrow(lower))
+                node.append(_mrow(upper))
+                return node
+            if selector.endswith("_LOWER"):
+                if not lower:
+                    raise Equation3MtefError(f"Unsupported {selector} template with missing lower limit slot.")
+                node = _mathml_node("munder")
+                node.append(_mrow(main))
+                node.append(_mrow(lower))
+                return node
+            if not upper:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing upper limit slot.")
+            node = _mathml_node("mover")
+            node.append(_mrow(main))
+            node.append(_mrow(upper))
+            return node
+        if selector in BIGOP_TEMPLATES:
             if not slots:
                 raise Equation3MtefError(f"Unsupported {selector} template with empty subobject list.")
             if not slots[-1]:
@@ -629,6 +694,10 @@ class Mtef3Parser:
                     raise Equation3MtefError(f"Unsupported {selector} template with missing limit slots.")
                 upper = slot_items[1]
                 lower = slot_items[2]
+            elif selector.endswith("_UPPER"):
+                if len(slot_items) < 2:
+                    raise Equation3MtefError(f"Unsupported {selector} template with missing upper limit slot.")
+                upper = slot_items[1]
             elif selector.endswith("_LOWER"):
                 if len(slot_items) >= 3:
                     lower = slot_items[2]
@@ -638,17 +707,35 @@ class Mtef3Parser:
                     raise Equation3MtefError(f"Unsupported {selector} template with missing lower limit slot.")
 
             bigop: ET.Element
-            if selector.endswith("_BOTH"):
-                bigop = _mathml_node("munderover")
-                bigop.append(operator)
-                bigop.append(_mrow(lower))
-                bigop.append(_mrow(upper))
-            elif selector.endswith("_LOWER"):
-                bigop = _mathml_node("munder")
-                bigop.append(operator)
-                bigop.append(_mrow(lower))
+            if selector in INTEGRAL_STYLE_BIGOP_TEMPLATES:
+                if selector.endswith("_BOTH"):
+                    bigop = _mathml_node("msubsup")
+                    bigop.append(operator)
+                    bigop.append(_mrow(lower))
+                    bigop.append(_mrow(upper))
+                elif selector.endswith("_UPPER"):
+                    if not upper:
+                        raise Equation3MtefError(f"Unsupported {selector} template with missing upper limit slot.")
+                    bigop = _mathml_node("msup")
+                    bigop.append(operator)
+                    bigop.append(_mrow(upper))
+                else:
+                    bigop = _mathml_node("msub")
+                    bigop.append(operator)
+                    bigop.append(_mrow(lower))
+                bigop.set("data-equation3-limit-style", "integral")
             else:
-                bigop = operator
+                if selector.endswith("_BOTH"):
+                    bigop = _mathml_node("munderover")
+                    bigop.append(operator)
+                    bigop.append(_mrow(lower))
+                    bigop.append(_mrow(upper))
+                elif selector.endswith("_LOWER"):
+                    bigop = _mathml_node("munder")
+                    bigop.append(operator)
+                    bigop.append(_mrow(lower))
+                else:
+                    bigop = operator
 
             node = _mathml_node("mrow")
             node.append(bigop)

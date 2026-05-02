@@ -25,3 +25,11 @@ def test_unknown_source_contract_stays_manual_triage() -> None:
     assert contract["target_format"] == "canonical-mathml"
     assert contract["contract_status"] == "manual-triage"
     assert contract["conversion_claim"] is False
+
+
+def test_equation3_contract_names_current_bigop_slice() -> None:
+    contract = canonical_mathml_contract_for_source_family("equation-editor-3-ole").to_dict()
+    notes = "\n".join(contract["notes"])
+
+    assert "BigOp (sum/integral/product/coproduct/integral-op)" in notes
+    assert "universal Equation Editor 3.0 support" in notes

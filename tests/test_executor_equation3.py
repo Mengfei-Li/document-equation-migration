@@ -123,12 +123,13 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[0].status == "ready"
     assert reports[0].runner == "internal-equation3-probe"
     assert reports[0].argv[0] == "probe-equation3-evidence"
-    assert "limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, matrix, and character slice" in "\n".join(
-        reports[0].notes
+    assert "limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, BigOp, and character slice" in (
+        "\n".join(reports[0].notes)
     )
     assert reports[1].supported is True
     assert reports[1].status == "ready"
     assert reports[1].runner == "internal-equation3-mtef-v3-limited"
+    assert "limit, matrix, BigOp, and character slice" in "\n".join(reports[1].notes)
     assert "not a universal Equation Editor 3.0 converter claim" in "\n".join(reports[1].notes)
     assert reports[2].status == "skipped-until-needed"
     assert reports[3].status == "skipped-downstream"
@@ -333,3 +334,9 @@ def test_equation3_fixture_admissibility_keeps_public_promotion_gated() -> None:
         "disqualifying_conditions"
     ]
     assert any("Canonical MathML output validates" in item for item in requirements["promotion_gate"])
+    supported_records = "\n".join(requirements["current_productized_slice"]["supported_records"])
+    assert "tmLIM_UPPER" in supported_records
+    assert "tmISUM_LOWER" in supported_records
+    assert "tmIPROD_BOTH" in supported_records
+    assert "tmCOPROD_NO_LIMITS" in supported_records
+    assert "tmINTOP_BOTH" in supported_records
