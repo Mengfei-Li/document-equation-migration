@@ -224,6 +224,18 @@ class Mtef3Parser:
         high = self.read_u8()
         return low | (high << 8)
 
+    def read_bytes(self, length: int) -> bytes:
+        if length < 0:
+            raise ValueError("length must be non-negative.")
+        end = self.offset + length
+        if end > len(self.data):
+            raise Equation3MtefError(
+                f"Unexpected EOF at offset {self.offset} while reading {length} bytes (available={len(self.data) - self.offset})."
+            )
+        chunk = self.data[self.offset : end]
+        self.offset = end
+        return chunk
+
     def parse(self) -> Equation3MathMLResult:
         version = self.read_u8()
         platform = self.read_u8()
@@ -304,7 +316,8 @@ class Mtef3Parser:
                 continue
 
             if record_type == 5:
-                raise Equation3MtefError("Matrix records are outside the supported Equation3 MTEF v3 slice.")
+                output.append(self.parse_matrix_record())
+                continue
             if record_type == 6:
                 self.read_u8()
                 continue
@@ -319,6 +332,96 @@ class Mtef3Parser:
                 continue
 
             raise Equation3MtefError(f"Unsupported MTEF3 record type {record_type} at offset {self.offset - 1}.")
+
+    def parse_line_contents(self, options: int) -> list[ET.Element]:
+        if options & 0x04:
+            self.read_mtef16()
+        if options & 0x02:
+            self.skip_ruler()
+        if options & 0x01:
+            return []
+        return self.parse_sequence_until_end()
+
+    @staticmethod
+    def _decode_partition_styles(raw: bytes, count: int) -> list[int]:
+        styles: list[int] = []
+        bit_offset = 0
+        for _ in range(count):
+            styles.append((raw[bit_offset // 8] >> (bit_offset % 8)) & 0x03)
+            bit_offset += 2
+        return styles
+
+    def parse_matrix_record(self) -> ET.Element:
+        valign = self.read_u8()
+        h_just = self.read_u8()
+        v_just = self.read_u8()
+        rows = self.read_u8()
+        cols = self.read_u8()
+        if rows == 0 or cols == 0:
+            raise Equation3MtefError(f"Matrix records with rows={rows} cols={cols} are outside the supported slice.")
+
+        row_parts_bytes = ((rows + 1) * 2 + 7) // 8
+        col_parts_bytes = ((cols + 1) * 2 + 7) // 8
+        row_parts_raw = self.read_bytes(row_parts_bytes)
+        col_parts_raw = self.read_bytes(col_parts_bytes)
+        row_parts = self._decode_partition_styles(row_parts_raw, rows + 1)
+        col_parts = self._decode_partition_styles(col_parts_raw, cols + 1)
+
+        expected_cells = rows * cols
+        cells: list[list[ET.Element]] = []
+        while len(cells) < expected_cells:
+            tag = self.read_u8()
+            options = tag >> 4
+            record_type = tag & 0x0F
+            self.record_counts[record_type] += 1
+            if record_type == 0:
+                raise Equation3MtefError(
+                    f"Matrix object list ended early after {len(cells)} cells (expected={expected_cells})."
+                )
+            if record_type in {10, 11, 12, 13, 14}:
+                continue
+            if options & 0x08:
+                self.skip_nudge()
+            if record_type != 1:
+                raise Equation3MtefError(
+                    f"Unsupported matrix object record type {record_type} at offset {self.offset - 1}."
+                )
+            cells.append(self.parse_line_contents(options))
+
+        while True:
+            tag = self.read_u8()
+            options = tag >> 4
+            record_type = tag & 0x0F
+            self.record_counts[record_type] += 1
+            if record_type == 0:
+                break
+            if record_type in {10, 11, 12, 13, 14}:
+                continue
+            if options & 0x08:
+                self.skip_nudge()
+            raise Equation3MtefError(
+                f"Unexpected trailing matrix object record type {record_type} at offset {self.offset - 1}."
+            )
+
+        table = _mathml_node("mtable")
+        table.set("data-equation3-matrix-rows", str(rows))
+        table.set("data-equation3-matrix-cols", str(cols))
+        table.set("data-equation3-matrix-valign", str(valign))
+        table.set("data-equation3-matrix-hjust", str(h_just))
+        table.set("data-equation3-matrix-vjust", str(v_just))
+        table.set("data-equation3-matrix-row-parts", ",".join(str(value) for value in row_parts))
+        table.set("data-equation3-matrix-col-parts", ",".join(str(value) for value in col_parts))
+
+        for row_index in range(rows):
+            row = _mathml_node("mtr")
+            for col_index in range(cols):
+                cell_children = cells[row_index * cols + col_index]
+                cell = _mathml_node("mtd")
+                cell.append(_mrow(cell_children))
+                row.append(cell)
+            table.append(row)
+
+        return table
 
     def parse_template(self) -> tuple[str, list[list[ET.Element]]]:
         selector_raw = self.read_u8()

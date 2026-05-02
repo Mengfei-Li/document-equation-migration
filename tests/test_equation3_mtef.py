@@ -65,6 +65,27 @@ def _parbox(selector: int, main: bytes, *, variation: int = 0, include_fence_cha
     return b"\x03" + bytes([selector, variation]) + b"\x00" + b"\x01" + main + b"\x00" + fence_chars + b"\x00"
 
 
+def _line(objects: bytes) -> bytes:
+    return b"\x01" + objects + b"\x00"
+
+
+def _matrix(rows: int, cols: int, cell_lines: list[bytes]) -> bytes:
+    assert rows * cols == len(cell_lines)
+    row_parts = b"\x00" * (((rows + 1) * 2 + 7) // 8)
+    col_parts = b"\x00" * (((cols + 1) * 2 + 7) // 8)
+    return (
+        b"\x05"
+        + b"\x00"  # valign
+        + b"\x01"  # h_just (left)
+        + b"\x00"  # v_just
+        + bytes([rows, cols])
+        + row_parts
+        + col_parts
+        + b"".join(cell_lines)
+        + b"\x00"
+    )
+
+
 def _supported_equation_native_stream() -> bytes:
     expression = (
         b"\x0a"
@@ -247,8 +268,37 @@ def test_supported_mtef3_char_embellishment_prime_converts_to_mathml() -> None:
     assert result.record_counts["6"] == 1
 
 
-def test_matrix_records_stay_blocked_instead_of_guessed() -> None:
-    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + b"\x05"
+def test_supported_mtef3_matrix_record_converts_to_mathml_table() -> None:
+    expression = (
+        _line(
+            _matrix(
+                2,
+                2,
+                [
+                    _line(_char(ord("a"))),
+                    _line(_char(ord("b"))),
+                    _line(_char(ord("c"))),
+                    _line(_char(ord("d"))),
+                ],
+            )
+        )
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
 
-    with pytest.raises(Equation3MtefError, match="Matrix records"):
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mtable") == 1
+    matrix = next(node for node in root.iter() if local_name(node.tag) == "mtable")
+    assert matrix.attrib["data-equation3-matrix-rows"] == "2"
+    assert matrix.attrib["data-equation3-matrix-cols"] == "2"
+    assert "".join(root.itertext()) == "abcd"
+    assert result.record_counts["5"] == 1
+
+
+def test_malformed_matrix_records_still_block_instead_of_guessing() -> None:
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + b"\x01" + b"\x05\x00\x00\x00\x00\x02"
+
+    with pytest.raises(Equation3MtefError, match="Matrix records with rows=0 cols=2"):
         convert_equation_native_stream_to_mathml(stream)
