@@ -233,6 +233,21 @@ def test_supported_mtef3_small_fraction_preserves_size_signal() -> None:
     assert result.template_selector_counts["14:1:tmFRACT_SMALL"] == 1
 
 
+def test_supported_mtef3_allows_nested_template_records_in_template_slot_lists() -> None:
+    nested = _parbox(1, _char(ord("a")))
+    fraction = b"\x03\x0e\x00\x00" + nested + b"\x01" + _char(ord("b")) + b"\x00" + b"\x00"
+    expression = b"\x01" + fraction + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mfrac") == 1
+    assert "".join(root.itertext()) == "(a)b"
+    assert result.template_selector_counts["14:0:tmFRACT"] == 1
+    assert result.template_selector_counts["1:0:tmPAREN"] == 1
+
+
 def test_supported_mtef3_slash_fraction_template_converts_to_bevelled_mathml() -> None:
     expression = b"\x01" + _slash_fraction(_char(ord("a")), _char(ord("b"))) + b"\x00" + b"\x00"
     stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression

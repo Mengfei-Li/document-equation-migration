@@ -580,6 +580,10 @@ class Mtef3Parser:
                     node = self.apply_embellishments(node, self.parse_embellishment_list())
                 slots.append([node])
                 continue
+            if record_type == 3:
+                nested_selector, nested_slots = self.parse_template()
+                slots.append([self.apply_template(_empty_mrow(), nested_selector, nested_slots)])
+                continue
             if record_type == 4:
                 slots.append([self.parse_pile_record(options)])
                 continue
