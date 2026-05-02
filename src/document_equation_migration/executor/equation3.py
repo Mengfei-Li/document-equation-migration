@@ -127,7 +127,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "MTEF v2 fnSPACE records mapped to MathML mspace with source char-code evidence",
                 "MTEF v2/v3 fnLCGREEK/fnUCGREEK ASCII glyph positions mapped to Unicode Greek where known",
                 "font/size/ruler records as ignored formatting metadata",
-                "embellishment records parsed; prime mapped to msup (others currently ignored)",
+                "embellishment records parsed; hat mapped to mover and prime mapped to msup (others currently ignored)",
                 "legacy Equation Native post-END footers: observed short footer envelopes only (ignored)",
             ],
             "unsupported_records": [

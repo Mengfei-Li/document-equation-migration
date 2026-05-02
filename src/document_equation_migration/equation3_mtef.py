@@ -685,18 +685,27 @@ class Mtef3Parser:
             embells.append(self.read_u8())
 
     def apply_embellishments(self, base: ET.Element, embells: list[int]) -> ET.Element:
+        node = base
+
+        if 9 in embells:
+            mover = _mathml_node("mover")
+            mover.set("accent", "true")
+            mover.append(node)
+            mover.append(_mathml_node("mo", "^"))
+            node = mover
+
         prime: str | None = None
         for emb in (18, 6, 5):
             if emb in embells:
                 prime = EMBELL_PRIME_TO_CHAR[emb]
                 break
         if prime is None:
-            return base
+            return node
 
-        node = _mathml_node("msup")
-        node.append(base)
-        node.append(_mathml_node("mo", prime))
-        return node
+        sup = _mathml_node("msup")
+        sup.append(node)
+        sup.append(_mathml_node("mo", prime))
+        return sup
 
     def apply_template(self, base: ET.Element, selector: str, slots: list[list[ET.Element]]) -> ET.Element:
         if selector in PARBOX_DELIMITERS:
