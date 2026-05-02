@@ -692,3 +692,124 @@ def test_supported_mtef3_integral_operator_template_with_limits_uses_side_limits
     assert side_limits.attrib["data-equation3-limit-style"] == "integral"
     assert "".join(root.itertext()) == "\u222b01f"
     assert result.template_selector_counts["42:2:tmINTOP_BOTH"] == 1
+
+
+@pytest.mark.parametrize(
+    ("selector", "variation", "operator_codepoint", "upper", "lower", "expected_tag", "expected_text", "selector_key"),
+    [
+        (30, 0, 0x2211, None, _char(ord("i")), "msub", "\u2211ia", "30:0:tmISUM_LOWER"),
+        (30, 1, 0x2211, _char(ord("n")), _char(ord("i")), "msubsup", "\u2211ina", "30:1:tmISUM_BOTH"),
+        (32, 0, 0x220F, None, _char(ord("i")), "msub", "\u220fia", "32:0:tmIPROD_LOWER"),
+        (32, 1, 0x220F, _char(ord("n")), _char(ord("i")), "msubsup", "\u220fina", "32:1:tmIPROD_BOTH"),
+        (42, 0, 0x222B, _char(ord("1")), None, "msup", "\u222b1f", "42:0:tmINTOP_UPPER"),
+        (42, 1, 0x222B, None, _char(ord("0")), "msub", "\u222b0f", "42:1:tmINTOP_LOWER"),
+        (42, 2, 0x222B, _char(ord("1")), _char(ord("0")), "msubsup", "\u222b01f", "42:2:tmINTOP_BOTH"),
+    ],
+)
+def test_supported_mtef3_integral_style_bigop_variations_use_side_limits(
+    selector: int,
+    variation: int,
+    operator_codepoint: int,
+    upper: bytes | None,
+    lower: bytes | None,
+    expected_tag: str,
+    expected_text: str,
+    selector_key: str,
+) -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            selector,
+            variation,
+            main=_char(ord("a")) if selector != 42 else _char(ord("f")),
+            upper=upper,
+            lower=lower,
+            operator_codepoint=operator_codepoint,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    side_limit = next(node for node in root.iter() if local_name(node.tag) == expected_tag)
+
+    assert side_limit.attrib["data-equation3-limit-style"] == "integral"
+    assert "".join(root.itertext()) == expected_text
+    assert result.template_selector_counts[selector_key] == 1
+
+
+@pytest.mark.parametrize(
+    ("variation", "upper", "lower", "expected_tag", "expected_text", "selector_key"),
+    [
+        (0, None, _char(ord("i")), "munder", "\u2210iA", "33:0:tmCOPROD_LOWER"),
+        (1, _char(ord("n")), _char(ord("i")), "munderover", "\u2210inA", "33:1:tmCOPROD_BOTH"),
+        (2, None, None, "mo", "\u2210A", "33:2:tmCOPROD_NO_LIMITS"),
+    ],
+)
+def test_supported_mtef3_coproduct_template_variations(
+    variation: int,
+    upper: bytes | None,
+    lower: bytes | None,
+    expected_tag: str,
+    expected_text: str,
+    selector_key: str,
+) -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            33,
+            variation,
+            main=_char(ord("A")),
+            upper=upper,
+            lower=lower,
+            operator_codepoint=0x2210,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    assert any(local_name(node.tag) == expected_tag for node in root.iter())
+    assert "".join(root.itertext()) == expected_text
+    assert result.template_selector_counts[selector_key] == 1
+
+
+@pytest.mark.parametrize(
+    ("variation", "upper", "lower", "expected_tag", "expected_text", "selector_key"),
+    [
+        (0, _char(ord("1")), None, "mover", "lim1", "39:0:tmLIM_UPPER"),
+        (1, None, _char(ord("0")), "munder", "lim0", "39:1:tmLIM_LOWER"),
+        (2, _char(ord("1")), _char(ord("0")), "munderover", "lim01", "39:2:tmLIM_BOTH"),
+    ],
+)
+def test_supported_mtef3_limit_template_variations(
+    variation: int,
+    upper: bytes | None,
+    lower: bytes | None,
+    expected_tag: str,
+    expected_text: str,
+    selector_key: str,
+) -> None:
+    expression = (
+        b"\x01"
+        + _limit_template(
+            variation,
+            main=_char(ord("l")) + _char(ord("i")) + _char(ord("m")),
+            upper=upper,
+            lower=lower,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert any(local_name(node.tag) == expected_tag for node in root.iter())
+    assert "".join(root.itertext()) == expected_text
+    assert result.template_selector_counts[selector_key] == 1
