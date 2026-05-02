@@ -256,7 +256,12 @@ class Mtef3Parser:
 
         children = self.parse_sequence_until_end()
         if self.offset != len(self.data):
-            raise Equation3MtefError(f"Parser stopped with {len(self.data) - self.offset} trailing bytes.")
+            trailing = self.data[self.offset :]
+            # Some legacy Equation Native streams include a short trailer after the final END record.
+            # We allow zero-padding and a single trailing 16-bit word, and reject anything else so
+            # unsupported record families remain blocked instead of being silently ignored.
+            if not (trailing and (all(byte == 0 for byte in trailing) or len(trailing) == 2)):
+                raise Equation3MtefError(f"Parser stopped with {len(trailing)} trailing bytes.")
 
         root = _mathml_node("math")
         root.set("display", "block")

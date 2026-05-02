@@ -158,6 +158,22 @@ def test_supported_mtef3_script_slice_converts_to_mathml() -> None:
     assert result.template_selector_counts["15:1:tmSUB"] == 2
 
 
+def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> None:
+    stream = _supported_equation_native_stream() + b"\xda\xb6"
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "bk=ak"
+    assert result.mtef_payload_bytes - result.parsed_bytes == 2
+
+
+def test_supported_mtef3_rejects_unexpected_trailing_bytes_after_end_record() -> None:
+    stream = _supported_equation_native_stream() + b"\xda\xb6\x01"
+
+    with pytest.raises(Equation3MtefError, match="Parser stopped with 3 trailing bytes"):
+        convert_equation_native_stream_to_mathml(stream)
+
+
 def test_supported_mtef3_fraction_template_converts_to_mathml() -> None:
     expression = b"\x01" + _fraction(_char(ord("a")), _char(ord("b"))) + b"\x00" + b"\x00"
     stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression

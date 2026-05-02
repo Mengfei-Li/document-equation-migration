@@ -122,11 +122,12 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "full/sub/sub2 placeholder markers",
                 "font/size/ruler records as ignored formatting metadata",
                 "embellishment records parsed; prime mapped to msup (others currently ignored)",
+                "legacy Equation Native trailer: optional 16-bit word after END (ignored)",
             ],
             "unsupported_records": [
                 "unsupported matrix cell object records",
                 "unknown template selectors",
-                "unparsed trailing bytes",
+                "unexpected trailing bytes beyond the allowed trailer",
             ],
             "general_converter_claim": False,
         },
