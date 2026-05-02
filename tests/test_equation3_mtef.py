@@ -86,6 +86,34 @@ def _matrix(rows: int, cols: int, cell_lines: list[bytes]) -> bytes:
     )
 
 
+def _null_line() -> bytes:
+    return b"\x11"  # LINE record with xfNULL option set; object list omitted.
+
+
+def _bigop(
+    selector: int,
+    variation: int,
+    *,
+    main: bytes,
+    operator_codepoint: int,
+    upper: bytes | None = None,
+    lower: bytes | None = None,
+) -> bytes:
+    upper_record = _line(upper) if upper is not None else _null_line()
+    lower_record = _line(lower) if lower is not None else _null_line()
+    operator_record = _char(operator_codepoint, typeface=6, options=0)
+    return (
+        b"\x03"
+        + bytes([selector, variation])
+        + b"\x00"
+        + _line(main)
+        + upper_record
+        + lower_record
+        + operator_record
+        + b"\x00"
+    )
+
+
 def _supported_equation_native_stream() -> bytes:
     expression = (
         b"\x0a"
@@ -302,3 +330,50 @@ def test_malformed_matrix_records_still_block_instead_of_guessing() -> None:
 
     with pytest.raises(Equation3MtefError, match="Matrix records with rows=0 cols=2"):
         convert_equation_native_stream_to_mathml(stream)
+
+
+def test_supported_mtef3_sum_template_with_limits_converts_to_munderover() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            29,
+            1,
+            main=_char(ord("a")),
+            upper=_char(ord("n")),
+            lower=_char(ord("i")) + _char(ord("="), typeface=6, options=0) + _char(ord("1")),
+            operator_codepoint=0x2211,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("munderover") == 1
+    assert "".join(root.itertext()) == "\u2211i=1na"
+    assert result.template_selector_counts["29:1:tmSUM_BOTH"] == 1
+
+
+def test_supported_mtef3_single_integral_lower_limit_converts_to_munder() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            21,
+            1,
+            main=_char(ord("x")),
+            lower=_char(ord("0")),
+            operator_codepoint=0x222B,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("munder") == 1
+    assert "".join(root.itertext()) == "\u222b0x"
+    assert result.template_selector_counts["21:1:tmSINT_LOWER"] == 1

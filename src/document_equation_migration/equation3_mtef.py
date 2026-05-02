@@ -48,9 +48,15 @@ TEMPLATE_SELECTOR = {
     (16, 1): "tmUBAR_DOUBLE",
     (17, 0): "tmOBAR",
     (17, 1): "tmOBAR_DOUBLE",
+    (21, 0): "tmSINT_NO_LIMITS",
+    (21, 1): "tmSINT_LOWER",
+    (21, 2): "tmSINT_BOTH",
+    (29, 0): "tmSUM_LOWER",
+    (29, 1): "tmSUM_BOTH",
+    (29, 2): "tmSUM_NO_LIMITS",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
-OPERATOR_CHARS = set("=+-*/(),[]{}")
+OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2211", "\u222b"}  # ∑, ∫
 PARBOX_DELIMITERS = {
     "tmANGLE": ("\u27e8", "\u27e9"),
     "tmANGLE_LEFT": ("\u27e8", ""),
@@ -569,6 +575,60 @@ class Mtef3Parser:
             bar = _mathml_node("mo", bar_text)
             bar.set("stretchy", "true")
             node.append(bar)
+            return node
+        if selector in {
+            "tmSINT_NO_LIMITS",
+            "tmSINT_LOWER",
+            "tmSINT_BOTH",
+            "tmSUM_NO_LIMITS",
+            "tmSUM_LOWER",
+            "tmSUM_BOTH",
+        }:
+            if not slots:
+                raise Equation3MtefError(f"Unsupported {selector} template with empty subobject list.")
+            if not slots[-1]:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing operator character.")
+
+            operator_text = "".join(slots[-1][0].itertext())
+            operator = _mathml_node("mo", operator_text)
+            operator.set("largeop", "true")
+            operator.set("movablelimits", "true")
+
+            slot_items = slots[:-1]
+            if not slot_items:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing main slot.")
+            main = slot_items[0]
+            upper: list[ET.Element] = []
+            lower: list[ET.Element] = []
+            if selector.endswith("_BOTH"):
+                if len(slot_items) < 3:
+                    raise Equation3MtefError(f"Unsupported {selector} template with missing limit slots.")
+                upper = slot_items[1]
+                lower = slot_items[2]
+            elif selector.endswith("_LOWER"):
+                if len(slot_items) >= 3:
+                    lower = slot_items[2]
+                elif len(slot_items) == 2:
+                    lower = slot_items[1]
+                else:
+                    raise Equation3MtefError(f"Unsupported {selector} template with missing lower limit slot.")
+
+            bigop: ET.Element
+            if selector.endswith("_BOTH"):
+                bigop = _mathml_node("munderover")
+                bigop.append(operator)
+                bigop.append(_mrow(lower))
+                bigop.append(_mrow(upper))
+            elif selector.endswith("_LOWER"):
+                bigop = _mathml_node("munder")
+                bigop.append(operator)
+                bigop.append(_mrow(lower))
+            else:
+                bigop = operator
+
+            node = _mathml_node("mrow")
+            node.append(bigop)
+            node.append(_mrow(main))
             return node
         raise Equation3MtefError(f"Unsupported template {selector}.")
 

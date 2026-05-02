@@ -66,7 +66,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "description": (
                     "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
                     "The current internal converter is limited to the observed and synthetic-covered MTEF v3 script, "
-                    "root, fraction, bar, fence, matrix, and character structures."
+                    "root, fraction, bar, fence, matrix, BigOp (sum/integral), and character structures."
                 ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
@@ -116,6 +116,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl fraction templates: tmFRACT, tmFRACT_SMALL",
                 "tmpl bar templates: tmUBAR, tmUBAR_DOUBLE, tmOBAR, tmOBAR_DOUBLE",
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
+                "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH",
                 "matrix records with supported line-based cells",
                 "full/sub/sub2 placeholder markers",
                 "font/size/ruler records as ignored formatting metadata",
