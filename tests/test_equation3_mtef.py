@@ -84,6 +84,15 @@ def _line(objects: bytes) -> bytes:
     return b"\x01" + objects + b"\x00"
 
 
+def _pile(line_objects: list[bytes], *, h_just: int = 1, v_just: int = 1) -> bytes:
+    return (
+        b"\x04"
+        + bytes([h_just, v_just])
+        + b"".join(_line(objects) for objects in line_objects)
+        + b"\x00"
+    )
+
+
 def _matrix(rows: int, cols: int, cell_lines: list[bytes]) -> bytes:
     assert rows * cols == len(cell_lines)
     row_parts = b"\x00" * (((rows + 1) * 2 + 7) // 8)
@@ -177,6 +186,19 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
 
     assert "".join(root.itertext()) == "bk=ak"
     assert result.mtef_payload_bytes - result.parsed_bytes == 2
+
+
+@pytest.mark.parametrize(
+    "footer",
+    [b"\x7d", b"\x00\x7a\x00", b"\x74\x4a\x00", b"\x00" * 8 + b"\x09\x00\x00\x00"],
+)
+def test_supported_mtef3_allows_observed_legacy_footers_after_end_record(footer: bytes) -> None:
+    stream = _supported_equation_native_stream() + footer
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "bk=ak"
+    assert result.mtef_payload_bytes - result.parsed_bytes == len(footer)
 
 
 def test_supported_mtef3_rejects_unexpected_trailing_bytes_after_end_record() -> None:
@@ -402,6 +424,38 @@ def test_supported_mtef3_matrix_record_converts_to_mathml_table() -> None:
     assert matrix.attrib["data-equation3-matrix-cols"] == "2"
     assert "".join(root.itertext()) == "abcd"
     assert result.record_counts["5"] == 1
+
+
+def test_supported_mtef3_pile_record_converts_to_mathml_table() -> None:
+    expression = b"\x01" + _pile([_char(ord("a")), _char(ord("b"))]) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    pile = next(node for node in root.iter() if local_name(node.tag) == "mtable")
+
+    assert pile.attrib["data-equation3-pile-rows"] == "2"
+    assert pile.attrib["data-equation3-pile-hjust"] == "1"
+    assert [local_name(node.tag) for node in pile.iter()].count("mtr") == 2
+    assert "".join(root.itertext()) == "ab"
+    assert result.record_counts["4"] == 1
+
+
+def test_supported_mtef3_template_child_pile_converts_inside_fence() -> None:
+    brace_left_with_pile = (
+        b"\x03\x02\x01\x00" + _pile([_char(ord("x")), _char(ord("y"))]) + b"\x00"
+    )
+    expression = b"\x01" + brace_left_with_pile + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    pile = next(node for node in root.iter() if local_name(node.tag) == "mtable")
+
+    assert pile.attrib["data-equation3-pile-rows"] == "2"
+    assert "".join(root.itertext()) == "{xy"
+    assert result.template_selector_counts["2:1:tmBRACE_LEFT"] == 1
+    assert result.record_counts["4"] == 1
 
 
 def test_malformed_matrix_records_still_block_instead_of_guessing() -> None:

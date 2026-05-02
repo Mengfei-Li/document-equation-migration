@@ -308,10 +308,9 @@ class Mtef3Parser:
         children = self.parse_sequence_until_end()
         if self.offset != len(self.data):
             trailing = self.data[self.offset :]
-            # Some legacy Equation Native streams include a short trailer after the final END record.
-            # We allow zero-padding and a single trailing 16-bit word, and reject anything else so
-            # unsupported record families remain blocked instead of being silently ignored.
-            if not (trailing and (all(byte == 0 for byte in trailing) or len(trailing) == 2)):
+            # Some legacy Equation Native streams include a short footer after the final END record.
+            # Keep the accepted envelope narrow so unsupported record families still block.
+            if not self._is_supported_legacy_footer(trailing):
                 raise Equation3MtefError(f"Parser stopped with {len(trailing)} trailing bytes.")
 
         root = _mathml_node("math")
@@ -330,6 +329,24 @@ class Mtef3Parser:
             parsed_bytes=self.offset,
             mtef_payload_bytes=len(self.data),
             mtef_payload_sha256=sha256_bytes(self.data),
+        )
+
+    @staticmethod
+    def _is_supported_legacy_footer(trailing: bytes) -> bool:
+        if not trailing:
+            return True
+        if all(byte == 0 for byte in trailing):
+            return True
+        if len(trailing) == 1:
+            return True
+        if len(trailing) == 2:
+            return True
+        if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
+            return True
+        return (
+            len(trailing) == 12
+            and trailing[:8] == b"\x00" * 8
+            and trailing[9:] == b"\x00\x00\x00"
         )
 
     def parse_sequence_until_end(self) -> list[ET.Element]:
@@ -373,11 +390,7 @@ class Mtef3Parser:
                 continue
 
             if record_type == 4:
-                self.read_u8()
-                self.read_u8()
-                if options & 0x02:
-                    self.skip_ruler()
-                output.extend(self.parse_sequence_until_end())
+                output.append(self.parse_pile_record(options))
                 continue
 
             if record_type == 5:
@@ -406,6 +419,43 @@ class Mtef3Parser:
         if options & 0x01:
             return []
         return self.parse_sequence_until_end()
+
+    def parse_pile_record(self, options: int) -> ET.Element:
+        h_just = self.read_u8()
+        v_just = self.read_u8()
+        if options & 0x02:
+            self.skip_ruler()
+
+        rows: list[list[ET.Element]] = []
+        while True:
+            tag = self.read_u8()
+            child_options = tag >> 4
+            record_type = tag & 0x0F
+            self.record_counts[record_type] += 1
+
+            if record_type == 0:
+                break
+            if record_type in {10, 11, 12, 13, 14}:
+                continue
+            if child_options & 0x08:
+                self.skip_nudge()
+            if record_type != 1:
+                raise Equation3MtefError(
+                    f"Unsupported pile object record type {record_type} at offset {self.offset - 1}."
+                )
+            rows.append(self.parse_line_contents(child_options))
+
+        table = _mathml_node("mtable")
+        table.set("data-equation3-pile-rows", str(len(rows)))
+        table.set("data-equation3-pile-hjust", str(h_just))
+        table.set("data-equation3-pile-vjust", str(v_just))
+        for row_children in rows:
+            row = _mathml_node("mtr")
+            cell = _mathml_node("mtd")
+            cell.append(_mrow(row_children))
+            row.append(cell)
+            table.append(row)
+        return table
 
     @staticmethod
     def _decode_partition_styles(raw: bytes, count: int) -> list[int]:
@@ -529,6 +579,9 @@ class Mtef3Parser:
                 if options & 0x02:
                     node = self.apply_embellishments(node, self.parse_embellishment_list())
                 slots.append([node])
+                continue
+            if record_type == 4:
+                slots.append([self.parse_pile_record(options)])
                 continue
             raise Equation3MtefError(f"Unsupported template child record type {record_type} at offset {self.offset - 1}.")
 
