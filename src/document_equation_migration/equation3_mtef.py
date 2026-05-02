@@ -54,6 +54,9 @@ TEMPLATE_SELECTOR = {
     (29, 0): "tmSUM_LOWER",
     (29, 1): "tmSUM_BOTH",
     (29, 2): "tmSUM_NO_LIMITS",
+    (31, 0): "tmPROD_LOWER",
+    (31, 1): "tmPROD_BOTH",
+    (31, 2): "tmPROD_NO_LIMITS",
     (41, 0): "tmSLFRACT",
     (41, 1): "tmSLFRACT_BASELINE",
     (41, 2): "tmSLFRACT_SMALL",
@@ -601,6 +604,9 @@ class Mtef3Parser:
             "tmSUM_NO_LIMITS",
             "tmSUM_LOWER",
             "tmSUM_BOTH",
+            "tmPROD_NO_LIMITS",
+            "tmPROD_LOWER",
+            "tmPROD_BOTH",
         }:
             if not slots:
                 raise Equation3MtefError(f"Unsupported {selector} template with empty subobject list.")

@@ -117,7 +117,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl slash-fraction templates: tmSLFRACT, tmSLFRACT_BASELINE, tmSLFRACT_SMALL",
                 "tmpl bar templates: tmUBAR, tmUBAR_DOUBLE, tmOBAR, tmOBAR_DOUBLE",
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
-                "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH",
+                "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH",
                 "matrix records with supported line-based cells",
                 "full/sub/sub2 placeholder markers",
                 "font/size/ruler records as ignored formatting metadata",

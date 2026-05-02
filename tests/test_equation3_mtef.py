@@ -444,3 +444,73 @@ def test_supported_mtef3_single_integral_lower_limit_converts_to_munder() -> Non
     assert [local_name(node.tag) for node in root.iter()].count("munder") == 1
     assert "".join(root.itertext()) == "\u222b0x"
     assert result.template_selector_counts["21:1:tmSINT_LOWER"] == 1
+
+
+def test_supported_mtef3_product_template_with_limits_converts_to_munderover() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            31,
+            1,
+            main=_char(ord("a")),
+            upper=_char(ord("n")),
+            lower=_char(ord("i")) + _char(ord("="), typeface=6, options=0) + _char(ord("1")),
+            operator_codepoint=0x220F,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("munderover") == 1
+    assert "".join(root.itertext()) == "\u220fi=1na"
+    assert result.template_selector_counts["31:1:tmPROD_BOTH"] == 1
+
+
+def test_supported_mtef3_product_template_with_lower_limit_converts_to_munder() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            31,
+            0,
+            main=_char(ord("a")),
+            lower=_char(ord("i")),
+            operator_codepoint=0x220F,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("munder") == 1
+    assert "".join(root.itertext()) == "\u220fia"
+    assert result.template_selector_counts["31:0:tmPROD_LOWER"] == 1
+
+
+def test_supported_mtef3_product_template_without_limits_converts_to_large_operator() -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            31,
+            2,
+            main=_char(ord("a")),
+            operator_codepoint=0x220F,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("munder") == 0
+    assert [local_name(node.tag) for node in root.iter()].count("munderover") == 0
+    assert "".join(root.itertext()) == "\u220fa"
+    assert result.template_selector_counts["31:2:tmPROD_NO_LIMITS"] == 1
