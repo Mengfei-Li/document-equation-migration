@@ -244,7 +244,7 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
 
 @pytest.mark.parametrize(
     "footer",
-    [b"\x7d", b"\x00\x7a\x00", b"\x74\x4a\x00", b"\x00" * 8 + b"\x09\x00\x00\x00"],
+    [b"\x7d", b"\x00\x7a\x00", b"\x74\x4a\x00", b"\xff\xff\xff", b"\x00" * 8 + b"\x09\x00\x00\x00"],
 )
 def test_supported_mtef3_allows_observed_legacy_footers_after_end_record(footer: bytes) -> None:
     stream = _supported_equation_native_stream() + footer

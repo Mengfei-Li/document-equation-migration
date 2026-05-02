@@ -407,6 +407,8 @@ class Mtef3Parser:
             return True
         if len(trailing) == 2:
             return True
+        if len(trailing) == 3 and all(byte == 0xFF for byte in trailing):
+            return True
         if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
             return True
         return (
