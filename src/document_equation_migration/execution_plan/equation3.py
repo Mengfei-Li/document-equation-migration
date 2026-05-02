@@ -66,7 +66,7 @@ def _manual_review_required(route_entry: RouteEntry) -> bool:
 def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
     requires_manual_review = _manual_review_required(route_entry)
     notes = [
-        "Equation Editor 3.0 has an internal limited MTEF v3 to canonical MathML path for supported script, root, fraction, bar, fence, matrix, BigOp (sum/integral), and character structures."
+        "Equation Editor 3.0 has an internal limited MTEF v3 to canonical MathML path for supported script, root, fraction, slash-fraction, bar, fence, matrix, BigOp (sum/integral), and character structures."
     ]
     if requires_manual_review:
         notes.append("Preserve manual-review gate for unsupported MTEF records, legacy .doc ingestion, and deliverability claims.")

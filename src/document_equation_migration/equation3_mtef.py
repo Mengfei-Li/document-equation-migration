@@ -54,6 +54,9 @@ TEMPLATE_SELECTOR = {
     (29, 0): "tmSUM_LOWER",
     (29, 1): "tmSUM_BOTH",
     (29, 2): "tmSUM_NO_LIMITS",
+    (41, 0): "tmSLFRACT",
+    (41, 1): "tmSLFRACT_BASELINE",
+    (41, 2): "tmSLFRACT_SMALL",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2211", "\u222b"}  # ∑, ∫
@@ -550,6 +553,16 @@ class Mtef3Parser:
         if selector in {"tmFRACT", "tmFRACT_SMALL"}:
             node = _mathml_node("mfrac")
             if selector == "tmFRACT_SMALL":
+                node.set("data-equation3-fraction-size", "small")
+            node.append(_mrow(slots[0] if slots else []))
+            node.append(_mrow(slots[1] if len(slots) > 1 else []))
+            return node
+        if selector in {"tmSLFRACT", "tmSLFRACT_BASELINE", "tmSLFRACT_SMALL"}:
+            node = _mathml_node("mfrac")
+            node.set("bevelled", "true")
+            if selector == "tmSLFRACT_BASELINE":
+                node.set("data-equation3-slash-fraction-layout", "baseline")
+            if selector == "tmSLFRACT_SMALL":
                 node.set("data-equation3-fraction-size", "small")
             node.append(_mrow(slots[0] if slots else []))
             node.append(_mrow(slots[1] if len(slots) > 1 else []))

@@ -123,7 +123,7 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[0].status == "ready"
     assert reports[0].runner == "internal-equation3-probe"
     assert reports[0].argv[0] == "probe-equation3-evidence"
-    assert "limited MTEF v3 script, root, fraction, bar, fence, matrix, and character slice" in "\n".join(
+    assert "limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, matrix, and character slice" in "\n".join(
         reports[0].notes
     )
     assert reports[1].supported is True

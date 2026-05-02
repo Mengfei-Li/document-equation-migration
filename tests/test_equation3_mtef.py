@@ -42,6 +42,21 @@ def _fraction(numerator: bytes, denominator: bytes, *, variation: int = 0) -> by
     )
 
 
+def _slash_fraction(numerator: bytes, denominator: bytes, *, variation: int = 0) -> bytes:
+    return (
+        b"\x03\x29"
+        + bytes([variation])
+        + b"\x00"
+        + b"\x01"
+        + numerator
+        + b"\x00"
+        + b"\x01"
+        + denominator
+        + b"\x00"
+        + b"\x00"
+    )
+
+
 def _square_root(radicand: bytes) -> bytes:
     return b"\x03\x0d\x00\x00" + b"\x01" + radicand + b"\x00" + b"\x00"
 
@@ -166,6 +181,42 @@ def test_supported_mtef3_small_fraction_preserves_size_signal() -> None:
 
     assert fraction.attrib["data-equation3-fraction-size"] == "small"
     assert result.template_selector_counts["14:1:tmFRACT_SMALL"] == 1
+
+
+def test_supported_mtef3_slash_fraction_template_converts_to_bevelled_mathml() -> None:
+    expression = b"\x01" + _slash_fraction(_char(ord("a")), _char(ord("b"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    fraction = next(node for node in root.iter() if local_name(node.tag) == "mfrac")
+
+    assert fraction.attrib["bevelled"] == "true"
+    assert "".join(root.itertext()) == "ab"
+    assert result.template_selector_counts["41:0:tmSLFRACT"] == 1
+
+
+def test_supported_mtef3_slash_fraction_variations_preserve_layout_signals() -> None:
+    expression = (
+        b"\x01"
+        + _slash_fraction(_char(ord("a")), _char(ord("b")), variation=1)
+        + _slash_fraction(_char(ord("c")), _char(ord("d")), variation=2)
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    fractions = [node for node in root.iter() if local_name(node.tag) == "mfrac"]
+
+    assert fractions[0].attrib["bevelled"] == "true"
+    assert fractions[0].attrib["data-equation3-slash-fraction-layout"] == "baseline"
+    assert fractions[1].attrib["bevelled"] == "true"
+    assert fractions[1].attrib["data-equation3-fraction-size"] == "small"
+    assert "".join(root.itertext()) == "abcd"
+    assert result.template_selector_counts["41:1:tmSLFRACT_BASELINE"] == 1
+    assert result.template_selector_counts["41:2:tmSLFRACT_SMALL"] == 1
 
 
 def test_supported_mtef3_square_root_template_converts_to_mathml() -> None:
