@@ -66,7 +66,7 @@ def _manual_review_required(route_entry: RouteEntry) -> bool:
 def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
     requires_manual_review = _manual_review_required(route_entry)
     notes = [
-        "Equation Editor 3.0 has an internal limited MTEF v3 to canonical MathML path for supported script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), character structures, and narrow legacy post-END footers."
+        "Equation Editor 3.0 has an internal limited MTEF v2/v3 to canonical MathML path for supported script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), character structures, and narrow legacy post-END footers."
     ]
     if requires_manual_review:
         notes.append("Preserve manual-review gate for unsupported MTEF records, legacy .doc ingestion, and deliverability claims.")
@@ -86,7 +86,7 @@ def build_equation3_execution_step(route_entry: RouteEntry) -> ExecutionStep:
             ),
             ExecutionAction(
                 action_id="attempt-mtef-conversion",
-                description="Attempt limited MTEF v3 to canonical MathML conversion as the primary Equation Editor 3.0 path.",
+                description="Attempt limited MTEF v2/v3 to canonical MathML conversion as the primary Equation Editor 3.0 path.",
                 blocking=True,
             ),
             ExecutionAction(

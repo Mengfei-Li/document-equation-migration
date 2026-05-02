@@ -106,7 +106,7 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
         source_line="equation-editor-3",
         contract_status="implemented-limited",
         conversion_claim=True,
-        binding="internal-equation3-mtef-v3-to-canonical-mathml-limited",
+        binding="internal-equation3-mtef-v2v3-to-canonical-mathml-limited",
         expected_artifacts=(
             "canonical-mathml/*.xml",
             "canonicalization-summary.json",
@@ -114,13 +114,13 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
         ),
         required_evidence=(
             "Equation.3 source identity and non-MathType provenance",
-            "MTEF v3 payload extraction evidence",
-            "canonical MathML conversion output for the supported observed-structure MTEF v3 slice",
+            "MTEF v2/v3 payload extraction evidence",
+            "canonical MathML conversion output for the supported observed-structure MTEF v2/v3 slice",
             "formula-count parity between detected Equation3 objects and accepted canonical MathML artifacts",
             "source-to-canonical provenance for every accepted artifact",
         ),
         notes=(
-            "The internal binding is limited to the currently implemented MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), character structures, and narrow legacy post-END footers.",
+            "The internal binding is limited to the currently implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), character structures, and narrow legacy post-END footers.",
             "Do not claim universal Equation Editor 3.0 support or legacy .doc direct ingestion from this limited binding.",
             "Do not count Equation.DSMT* / MathType-marked MTEF3 material as Equation Editor 3.0 evidence.",
         ),

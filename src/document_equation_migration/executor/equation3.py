@@ -53,11 +53,11 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 ),
             },
             {
-                "id": "mtef-v3-header",
-                "description": "The native payload has Equation Editor 3.0 / MTEF v3 header evidence.",
+                "id": "mtef-header",
+                "description": "The native payload has Equation Editor / MTEF header evidence (version 2 or 3).",
                 "evidence_fields": (
                     "source_specific.equation_editor_3.native_header_size_bytes",
-                    "source_specific.equation_editor_3.mtef_version=3",
+                    "source_specific.equation_editor_3.mtef_version in {2,3}",
                     "source_specific.equation_editor_3.selected_route=mtef-v3-mainline",
                 ),
             },
@@ -65,7 +65,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "id": "canonical-output",
                 "description": (
                     "A conversion attempt emits valid canonical MathML artifacts with formula-count parity. "
-                    "The current internal converter is limited to the observed and synthetic-covered MTEF v3 script, "
+                    "The current internal converter is limited to the observed and synthetic-covered MTEF v2/v3 script, "
                     "root, fraction, slash-fraction, bar, fence, limit, matrix, pile, "
                     "BigOp (sum/integral/product/coproduct/integral-op), character structures, "
                     "and narrow legacy post-END footers."
@@ -105,7 +105,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
         ],
         "current_productized_slice": {
             "status": "implemented-limited",
-            "supported_mtef_version": 3,
+            "supported_mtef_versions": [2, 3],
             "supported_containers": [
                 "DOCX OLE embeddings exposing Equation Native payloads",
                 "legacy .doc OLE compound files exposing ObjectPool/*/Equation Native streams",
@@ -124,6 +124,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "matrix records with supported line-based cells",
                 "pile records with supported line-based rows",
                 "full/sub/sub2 placeholder markers",
+                "MTEF v2 fnSPACE records mapped to MathML mspace with source char-code evidence",
+                "MTEF v2/v3 fnLCGREEK/fnUCGREEK ASCII glyph positions mapped to Unicode Greek where known",
                 "font/size/ruler records as ignored formatting metadata",
                 "embellishment records parsed; prime mapped to msup (others currently ignored)",
                 "legacy Equation Native post-END footers: observed short footer envelopes only (ignored)",
@@ -222,12 +224,13 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
                     }
                 )
                 continue
-            if source_specific.get("mtef_version") != 3:
+            mtef_version = source_specific.get("mtef_version")
+            if mtef_version not in {2, 3}:
                 unsupported_items.append(
                     {
                         "formula_id": record.get("formula_id", formula_id),
                         "reason": "unsupported-mtef-version",
-                        "mtef_version": source_specific.get("mtef_version"),
+                        "mtef_version": mtef_version,
                     }
                 )
                 continue
@@ -238,10 +241,10 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
                     preferred_stream_name=str(provenance.get("payload_stream_name") or "") or None,
                 )
                 target_path = canonical_dir / f"{formula_id}.xml"
-                target_path.write_text(result.mathml_text, encoding="utf-8")
                 root = ET.fromstring(result.mathml_text)
                 if local_name(root.tag) != "math":
                     raise Equation3MtefError("Canonical MathML root is not math.")
+                target_path.write_text(result.mathml_text, encoding="utf-8")
             except Exception as exc:  # noqa: BLE001 - artifact gate must capture exact unsupported formula.
                 unsupported_items.append(
                     {
@@ -267,13 +270,14 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
                     "mtef_payload_sha256": result.mtef_payload_sha256,
                     "canonical_artifact_path": str(target_path),
                     "canonical_sha256": sha256_text(mathml_text),
-                    "preservation_status": "converted-equation3-mtef-v3-to-canonical-mathml-limited",
+                    "preservation_status": "converted-equation3-mtef-v2v3-to-canonical-mathml-limited",
                     "mtef_version": result.mtef_version,
                     "mtef_product": result.product,
                     "mtef_product_version": result.product_version,
                     "mtef_product_subversion": result.product_subversion,
                     "record_counts": result.record_counts,
                     "template_selector_counts": result.template_selector_counts,
+                    "typeface_counts": result.typeface_counts,
                     "parsed_bytes": result.parsed_bytes,
                     "mtef_payload_bytes": result.mtef_payload_bytes,
                     "property_signals": property_signals,
@@ -293,7 +297,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
         "artifact_type": "equation3-canonicalization-summary",
         "source_family": SOURCE_FAMILY,
         "target_format": "canonical-mathml",
-        "target_stage": "equation3-mtef-v3-to-canonical-mathml-limited",
+        "target_stage": "equation3-mtef-v2v3-to-canonical-mathml-limited",
         "gate_status": gate_status,
         "limited_conversion_claim": gate_status == "passed-limited",
         "general_converter_claim": False,
@@ -312,7 +316,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
         "supported_slice": equation3_fixture_admissibility_requirements()["current_productized_slice"],
         "claim_boundary": {
             "accepted": (
-                "MTEF v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice can be converted to canonical MathML.",
+                "MTEF v2/v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice can be converted to canonical MathML.",
             ),
             "not_accepted": (
                 "Universal Equation Editor 3.0 support.",
@@ -435,7 +439,7 @@ def _write_blocker_record(
             "probe": {
                 "runner": RUNNER,
                 "action_id": "probe-header-and-classid",
-                "signals": ["prog-id", "class-id", "eqnolefilehdr", "mtef-v3-header"],
+            "signals": ["prog-id", "class-id", "eqnolefilehdr", "mtef-header"],
             },
             "actions": list(_action_summaries(step)),
             "conversion_attempt": conversion_attempt or {},
@@ -464,12 +468,12 @@ def _probe_dry_run_report(
             "--output-dir",
             str(output_root),
             "--signals",
-            "prog-id,class-id,eqnolefilehdr,mtef-v3-header",
+            "prog-id,class-id,eqnolefilehdr,mtef-header",
         ),
         cwd=context.workspace_root,
         notes=(
-            "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v3 evidence.",
-            "The internal converter can now attempt the limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
+            "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v2/v3 evidence.",
+            "The internal converter can now attempt the limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
             "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -555,9 +559,9 @@ def build_equation3_dry_run_reports(
                     blocking=action.blocking,
                     supported=True,
                     status="ready",
-                    runner="internal-equation3-mtef-v3-limited",
+                    runner="internal-equation3-mtef-v2v3-limited",
                     argv=(
-                        "convert-equation3-mtef-v3",
+                        "convert-equation3-mtef-v2v3",
                         "--input",
                         "<execution-plan-input>",
                         "--output-dir",
@@ -565,7 +569,7 @@ def build_equation3_dry_run_reports(
                     ),
                     cwd=context.workspace_root,
                     notes=(
-                        "Attempts canonical MathML conversion for the implemented MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
+                        "Attempts canonical MathML conversion for the implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, character, and narrow legacy footer slice.",
                         "Unsupported records are reported as canonical artifact blockers instead of guessed.",
                         "This is not a universal Equation Editor 3.0 converter claim.",
                     ),
@@ -646,7 +650,7 @@ def _probe_execution_report(
         cwd=context.workspace_root,
         output_paths=(str(output_path),),
         notes=(
-            "Execution probes Equation.3 source identity and MTEF v3 header evidence.",
+            "Execution probes Equation.3 source identity and MTEF header evidence.",
             "Payload conversion is handled by the limited canonical MathML action.",
             "No OMML replacement or deliverable Word artifact is produced by this provider.",
             f"Blocker record written to {output_path}.",
@@ -769,7 +773,7 @@ def execute_equation3_step(
                         else str(blocker_record_path),
                     ),
                     notes=(
-                        "Equation3 source identity and MTEF v3 evidence were evaluated.",
+                        "Equation3 source identity and MTEF v2/v3 evidence were evaluated.",
                         f"Formula count from execution plan: {step.formula_count}.",
                     ),
                 )
@@ -786,9 +790,9 @@ def execute_equation3_step(
                         blocking=False,
                         supported=True,
                         status="completed",
-                        runner="internal-equation3-mtef-v3-limited",
+                        runner="internal-equation3-mtef-v2v3-limited",
                         argv=(
-                            "convert-equation3-mtef-v3",
+                            "convert-equation3-mtef-v2v3",
                             "--input",
                             context.input_path,
                             "--output-dir",
@@ -801,7 +805,7 @@ def execute_equation3_step(
                             str(_canonical_mathml_dir(output_root)),
                         ),
                         notes=(
-                            "Converted supported Equation3 MTEF v3 payloads to canonical MathML artifacts.",
+                            "Converted supported Equation3 MTEF v2/v3 payloads to canonical MathML artifacts.",
                             "Formula-count parity passed for this input.",
                             "This remains a limited observed-structure converter, not universal Equation Editor 3.0 support.",
                         ),
@@ -814,7 +818,7 @@ def execute_equation3_step(
                         action.description,
                         True,
                         context,
-                        note="MTEF v3 conversion did not satisfy the limited canonical MathML gate.",
+                        note="MTEF v2/v3 conversion did not satisfy the limited canonical MathML gate.",
                         output_path=blocker_record_path or _canonicalization_summary_path(_execution_output_root(context)),
                     )
                 )

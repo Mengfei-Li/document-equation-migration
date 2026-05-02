@@ -61,6 +61,16 @@ class EquationEditor3OleDetectorTests(unittest.TestCase):
         self.assertEqual(probe["mtef_version"], 3)
         self.assertEqual(probe["mtef_generating_product"], 1)
 
+    def test_probe_eqnolefilehdr_detects_equation_editor_mtef_v2(self):
+        payload = bytes(28) + b"\x02\x00\x01\x02\x01\x00"
+
+        probe = self.module.probe_eqnolefilehdr(payload)
+
+        self.assertTrue(probe["header_detected"])
+        self.assertEqual(probe["native_header_size_bytes"], 28)
+        self.assertEqual(probe["mtef_version"], 2)
+        self.assertEqual(probe["mtef_generating_product"], 1)
+
     def test_detects_equation_editor_3_docx_from_progid_and_header(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             docx_path = Path(tmp_dir) / "synthetic-eq3.docx"

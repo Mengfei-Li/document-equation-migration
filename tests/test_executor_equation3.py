@@ -14,7 +14,12 @@ from document_equation_migration.executor.equation3 import (
     execute_equation3_step,
 )
 from document_equation_migration.executor.model import DryRunContext, ExecutionContext
-from document_equation_migration.equation3_mtef import EQNOLEFILEHDR_SIZE, local_name
+from document_equation_migration.equation3_mtef import (
+    EQNOLEFILEHDR_SIZE,
+    Equation3MathMLResult,
+    NativePayload,
+    local_name,
+)
 
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "equation_editor_3_ole"
@@ -123,12 +128,12 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[0].status == "ready"
     assert reports[0].runner == "internal-equation3-probe"
     assert reports[0].argv[0] == "probe-equation3-evidence"
-    assert "limited MTEF v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile" in (
+    assert "limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile" in (
         "\n".join(reports[0].notes)
     )
     assert reports[1].supported is True
     assert reports[1].status == "ready"
-    assert reports[1].runner == "internal-equation3-mtef-v3-limited"
+    assert reports[1].runner == "internal-equation3-mtef-v2v3-limited"
     assert "limit, matrix, pile, BigOp, character, and narrow legacy footer slice" in "\n".join(reports[1].notes)
     assert "not a universal Equation Editor 3.0 converter claim" in "\n".join(reports[1].notes)
     assert reports[2].status == "skipped-until-needed"
@@ -176,7 +181,7 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
     assert required_property_ids == {
         "equation3-identity",
         "native-payload",
-        "mtef-v3-header",
+        "mtef-header",
         "canonical-output",
         "provenance-map",
     }
@@ -186,7 +191,7 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
         for gate in blocker_record["fixture_admissibility"]["promotion_gate"]
     )
     assert blocker_record["probe"]["runner"] == "internal-equation3-probe"
-    assert blocker_record["probe"]["signals"] == ["prog-id", "class-id", "eqnolefilehdr", "mtef-v3-header"]
+    assert blocker_record["probe"]["signals"] == ["prog-id", "class-id", "eqnolefilehdr", "mtef-header"]
     assert [action["action_id"] for action in blocker_record["actions"]] == [
         "probe-header-and-classid",
         "attempt-mtef-conversion",
@@ -198,7 +203,7 @@ def test_equation3_execute_writes_blocker_record_and_keeps_gate_status(tmp_path:
     assert blocker_record["actions"][3]["supported"] is False
 
     combined_notes = "\n".join("\n".join(report.notes) for report in reports)
-    assert "MTEF v3 conversion did not satisfy" in combined_notes
+    assert "MTEF v2/v3 conversion did not satisfy" in combined_notes
     assert "gate record only" in combined_notes
     assert "Blocker record written to" in combined_notes
     assert "deliverable conversion proof" in combined_notes
@@ -233,12 +238,62 @@ def test_equation3_execute_writes_limited_canonical_mathml_for_supported_payload
     assert summary["canonical_mathml_count"] == 1
     assert summary["formula_count_parity"] == "passed"
     assert summary["source_to_canonical_provenance"][0]["preservation_status"] == (
-        "converted-equation3-mtef-v3-to-canonical-mathml-limited"
+        "converted-equation3-mtef-v2v3-to-canonical-mathml-limited"
     )
+    assert summary["source_to_canonical_provenance"][0]["typeface_counts"] == {
+        "3:fnVARIABLE": 4,
+        "6:fnSYMBOL": 1,
+    }
     canonical_path = output_root / "canonical-mathml" / "equation3-canonical-0001.xml"
     root = ET.parse(canonical_path).getroot()
     assert local_name(root.tag) == "math"
     assert "".join(root.itertext()) == "bk=ak"
+
+
+def test_equation3_execute_does_not_write_invalid_mathml_artifact(monkeypatch, tmp_path: Path) -> None:
+    input_path = tmp_path / "invalid-equation3.docx"
+    _write_supported_equation3_docx(input_path)
+    context = ExecutionContext(
+        workspace_root=str(tmp_path),
+        execution_plan_path=str(tmp_path / "execution-plan.json"),
+        input_path=str(input_path),
+        output_dir=str(tmp_path / "out"),
+    )
+
+    def fake_convert(payload_data: bytes, *, preferred_stream_name: str | None = None):
+        return NativePayload(
+            raw_payload=payload_data,
+            equation_native_stream=payload_data,
+            stream_name=preferred_stream_name or "",
+            source_stream_sha256="raw",
+            equation_native_sha256="native",
+        ), Equation3MathMLResult(
+            mathml_text=(
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                f'<math xmlns="http://www.w3.org/1998/Math/MathML">{chr(2)}</math>\n'
+            ),
+            mtef_version=3,
+            platform=1,
+            product=1,
+            product_version=3,
+            product_subversion=0,
+            record_counts={},
+            template_selector_counts={},
+            typeface_counts={},
+            parsed_bytes=0,
+            mtef_payload_bytes=0,
+            mtef_payload_sha256="mtef",
+        )
+
+    monkeypatch.setattr(equation3_executor_module, "convert_equation3_payload_to_mathml", fake_convert)
+
+    execute_equation3_step(_equation3_step(formula_count=1), context)
+
+    output_root = tmp_path / "out" / "equation-editor-3-ole"
+    summary = json.loads((output_root / "canonicalization-summary.json").read_text(encoding="utf-8"))
+    assert summary["canonical_mathml_count"] == 0
+    assert summary["unsupported_fragment_count"] == 1
+    assert list((output_root / "canonical-mathml").glob("*.xml")) == []
 
 
 def test_equation3_execute_reads_legacy_doc_equation_native_stream(tmp_path: Path) -> None:

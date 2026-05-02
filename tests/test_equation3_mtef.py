@@ -18,6 +18,10 @@ def _char(codepoint: int, *, typeface: int = 3, options: int = 1) -> bytes:
     return bytes([(options << 4) | 2, _typeface_byte(typeface), codepoint & 0xFF, codepoint >> 8])
 
 
+def _char_v2(codepoint: int, *, typeface: int = 3, options: int = 1) -> bytes:
+    return bytes([(options << 4) | 2, _typeface_byte(typeface), codepoint & 0xFF])
+
+
 def _char_with_prime(codepoint: int) -> bytes:
     # CHAR record with xfEMBELL (0x2), followed by an EMBELL list containing embPRIME (5) and END (0).
     return _char(codepoint, options=2) + b"\x06\x05\x00"
@@ -166,6 +170,26 @@ def _supported_equation_native_stream() -> bytes:
     return bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
 
 
+def _supported_mtef2_equation_native_stream_with_template_child_matrix() -> bytes:
+    # MTEF v2 header (Mac) plus a ParBox template whose subobject list contains a MATRIX record directly.
+    template = (
+        b"\x03\x01\x00\x00"
+        + _matrix(
+            2,
+            2,
+            [
+                _line(_char_v2(ord("a"))),
+                _line(_char_v2(ord("b"))),
+                _line(_char_v2(ord("c"))),
+                _line(_char_v2(ord("d"))),
+            ],
+        )
+        + b"\x00"
+    )
+    expression = b"\x0a" + _line(template) + b"\x00"
+    return bytes(EQNOLEFILEHDR_SIZE) + b"\x02\x00\x01\x02\x01" + expression
+
+
 def test_supported_mtef3_script_slice_converts_to_mathml() -> None:
     result = convert_equation_native_stream_to_mathml(_supported_equation_native_stream())
     root = ET.fromstring(result.mathml_text)
@@ -177,6 +201,36 @@ def test_supported_mtef3_script_slice_converts_to_mathml() -> None:
     assert result.mtef_version == 3
     assert result.record_counts["3"] == 2
     assert result.template_selector_counts["15:1:tmSUB"] == 2
+
+
+def test_supported_mtef2_template_child_matrix_converts_inside_fence() -> None:
+    result = convert_equation_native_stream_to_mathml(_supported_mtef2_equation_native_stream_with_template_child_matrix())
+    root = ET.fromstring(result.mathml_text)
+
+    assert result.mtef_version == 2
+    assert [local_name(node.tag) for node in root.iter()].count("mtable") == 1
+    assert "".join(root.itertext()) == "(abcd)"
+    assert result.template_selector_counts["1:0:tmPAREN"] == 1
+
+
+def test_supported_mtef2_space_and_lower_greek_typefaces_convert_to_valid_mathml() -> None:
+    expression = (
+        b"\x01"
+        + _char_v2(ord("p"), typeface=4, options=0)
+        + _char_v2(2, typeface=24, options=0)
+        + b"\x00\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x02\x00\x01\x02\x01" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "\u03c0"
+    assert result.typeface_counts["4:fnLCGREEK"] == 1
+    assert result.typeface_counts["24:fnSPACE"] == 1
+    mspace = next(node for node in root.iter() if local_name(node.tag) == "mspace")
+    assert mspace.attrib["data-equation3-mtef-typeface"] == "fnSPACE"
+    assert mspace.attrib["data-equation3-mtef-char-code"] == "2"
 
 
 def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> None:

@@ -165,7 +165,7 @@ def probe_eqnolefilehdr(raw_payload: bytes, header_size: int = DEFAULT_HEADER_SI
         }
     )
 
-    if mtef_version == 3 and generating_product == 1:
+    if mtef_version in {2, 3} and generating_product == 1:
         result["header_detected"] = True
 
     return result

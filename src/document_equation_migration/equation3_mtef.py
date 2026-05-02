@@ -138,6 +138,52 @@ EMBELL_PRIME_TO_CHAR = {
     6: "\u2033",  # embDPRIME
     18: "\u2034",  # embTPRIME
 }
+TYPEFACE_NAMES = {
+    1: "fnTEXT",
+    2: "fnFUNCTION",
+    3: "fnVARIABLE",
+    4: "fnLCGREEK",
+    5: "fnUCGREEK",
+    6: "fnSYMBOL",
+    7: "fnVECTOR",
+    8: "fnNUMBER",
+    9: "fnUSER1",
+    10: "fnUSER2",
+    11: "fnMTEXTRA",
+    12: "fnTEXT_FE",
+    22: "fnEXPAND",
+    23: "fnMARKER",
+    24: "fnSPACE",
+}
+LOWER_GREEK_BY_ASCII = {
+    "a": "\u03b1",
+    "b": "\u03b2",
+    "c": "\u03c7",
+    "d": "\u03b4",
+    "e": "\u03b5",
+    "f": "\u03c6",
+    "g": "\u03b3",
+    "h": "\u03b7",
+    "i": "\u03b9",
+    "j": "\u03d1",
+    "k": "\u03ba",
+    "l": "\u03bb",
+    "m": "\u03bc",
+    "n": "\u03bd",
+    "o": "\u03bf",
+    "p": "\u03c0",
+    "q": "\u03b8",
+    "r": "\u03c1",
+    "s": "\u03c3",
+    "t": "\u03c4",
+    "u": "\u03c5",
+    "v": "\u03d6",
+    "w": "\u03c9",
+    "x": "\u03be",
+    "y": "\u03c8",
+    "z": "\u03b6",
+}
+UPPER_GREEK_BY_ASCII = {key.upper(): value.upper() for key, value in LOWER_GREEK_BY_ASCII.items()}
 
 ET.register_namespace("", MATHML_NS)
 
@@ -165,6 +211,7 @@ class Equation3MathMLResult:
     product_subversion: int
     record_counts: dict[str, int]
     template_selector_counts: dict[str, int]
+    typeface_counts: dict[str, int]
     parsed_bytes: int
     mtef_payload_bytes: int
     mtef_payload_sha256: str
@@ -200,8 +247,23 @@ def _empty_mrow() -> ET.Element:
     return _mrow([])
 
 
-def _char_to_mathml(mt_code: int) -> ET.Element:
+def _decode_typeface_character(mt_code: int, typeface: int | None) -> str:
     character = chr(mt_code)
+    if typeface == 4:
+        return LOWER_GREEK_BY_ASCII.get(character, character)
+    if typeface == 5:
+        return UPPER_GREEK_BY_ASCII.get(character, character)
+    return character
+
+
+def _char_to_mathml(mt_code: int, typeface: int | None = None) -> ET.Element:
+    if typeface == 24:
+        node = _mathml_node("mspace")
+        node.set("data-equation3-mtef-typeface", TYPEFACE_NAMES[typeface])
+        node.set("data-equation3-mtef-char-code", str(mt_code))
+        return node
+
+    character = _decode_typeface_character(mt_code, typeface)
     if character.isdecimal():
         return _mathml_node("mn", character)
     if character in OPERATOR_CHARS or character == "\u2026":
@@ -258,7 +320,7 @@ def _has_supported_header(equation_native_stream: bytes) -> bool:
     if len(equation_native_stream) < EQNOLEFILEHDR_SIZE + 5:
         return False
     payload = equation_native_stream[EQNOLEFILEHDR_SIZE:]
-    return payload[0] == 3 and payload[2] == 1
+    return payload[0] in {2, 3} and payload[2] == 1
 
 
 class Mtef3Parser:
@@ -267,6 +329,8 @@ class Mtef3Parser:
         self.offset = 0
         self.record_counts: Counter[int] = Counter()
         self.template_selector_counts: Counter[str] = Counter()
+        self.typeface_counts: Counter[str] = Counter()
+        self.mtef_version: int | None = None
 
     def read_u8(self) -> int:
         if self.offset >= len(self.data):
@@ -298,12 +362,13 @@ class Mtef3Parser:
 
     def parse(self) -> Equation3MathMLResult:
         version = self.read_u8()
+        self.mtef_version = version
         platform = self.read_u8()
         product = self.read_u8()
         product_version = self.read_u8()
         product_subversion = self.read_u8()
-        if version != 3:
-            raise Equation3MtefError(f"Expected MTEF version 3, got {version}.")
+        if version not in {2, 3}:
+            raise Equation3MtefError(f"Expected MTEF version 2 or 3, got {version}.")
 
         children = self.parse_sequence_until_end()
         if self.offset != len(self.data):
@@ -326,6 +391,7 @@ class Mtef3Parser:
             product_subversion=product_subversion,
             record_counts={str(key): value for key, value in sorted(self.record_counts.items())},
             template_selector_counts=dict(sorted(self.template_selector_counts.items())),
+            typeface_counts=dict(sorted(self.typeface_counts.items())),
             parsed_bytes=self.offset,
             mtef_payload_bytes=len(self.data),
             mtef_payload_sha256=sha256_bytes(self.data),
@@ -375,12 +441,7 @@ class Mtef3Parser:
                 continue
 
             if record_type == 2:
-                self.read_i8() + 128
-                mt_code = self.read_mtef16()
-                node = _char_to_mathml(mt_code)
-                if options & 0x02:
-                    node = self.apply_embellishments(node, self.parse_embellishment_list())
-                output.append(node)
+                output.append(self.parse_char_record(options))
                 continue
 
             if record_type == 3:
@@ -409,7 +470,7 @@ class Mtef3Parser:
                 self.skip_size()
                 continue
 
-            raise Equation3MtefError(f"Unsupported MTEF3 record type {record_type} at offset {self.offset - 1}.")
+            raise Equation3MtefError(f"Unsupported MTEF record type {record_type} at offset {self.offset - 1}.")
 
     def parse_line_contents(self, options: int) -> list[ET.Element]:
         if options & 0x04:
@@ -573,12 +634,7 @@ class Mtef3Parser:
                     slots.append(self.parse_sequence_until_end())
                 continue
             if record_type == 2:
-                self.read_i8() + 128
-                mt_code = self.read_mtef16()
-                node = _char_to_mathml(mt_code)
-                if options & 0x02:
-                    node = self.apply_embellishments(node, self.parse_embellishment_list())
-                slots.append([node])
+                slots.append([self.parse_char_record(options)])
                 continue
             if record_type == 3:
                 nested_selector, nested_slots = self.parse_template()
@@ -587,7 +643,23 @@ class Mtef3Parser:
             if record_type == 4:
                 slots.append([self.parse_pile_record(options)])
                 continue
+            if record_type == 5:
+                slots.append([self.parse_matrix_record()])
+                continue
             raise Equation3MtefError(f"Unsupported template child record type {record_type} at offset {self.offset - 1}.")
+
+    def parse_char_record(self, options: int) -> ET.Element:
+        typeface = self.read_i8() + 128
+        typeface_name = TYPEFACE_NAMES.get(typeface, "explicit-or-unknown")
+        self.typeface_counts[f"{typeface}:{typeface_name}"] += 1
+        if self.mtef_version == 2:
+            mt_code = self.read_u8()
+        else:
+            mt_code = self.read_mtef16()
+        node = _char_to_mathml(mt_code, typeface)
+        if options & 0x02:
+            node = self.apply_embellishments(node, self.parse_embellishment_list())
+        return node
 
     def parse_embellishment_list(self) -> list[int]:
         embells: list[int] = []
