@@ -115,6 +115,18 @@ def _overbar(main: bytes, *, variation: int = 0) -> bytes:
     return b"\x03\x11" + bytes([variation]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
 
 
+def _under_arrow(main: bytes, *, variation: int = 0) -> bytes:
+    return b"\x03" + bytes([46, variation]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
+
+
+def _over_arrow(main: bytes, *, variation: int = 0) -> bytes:
+    return b"\x03" + bytes([47, variation]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
+
+
+def _over_arc(main: bytes) -> bytes:
+    return b"\x03" + bytes([48, 0]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
+
+
 def _parbox(selector: int, main: bytes, *, variation: int = 0, include_fence_chars: bool = False) -> bytes:
     fence_chars = b""
     if include_fence_chars:
@@ -364,6 +376,8 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
         b"\x04\x02\x01",
         b"\x83\x0f\xa0",
         b"\x65\x77\x20",
+        b"\x0a\x01\x03",
+        b"\x0a\x1a\x06",
         b"\x00" * 8 + b"\x09\x00\x00\x00",
     ],
 )
@@ -548,6 +562,65 @@ def test_supported_mtef3_double_overbar_preserves_count_signal() -> None:
     assert overbar.attrib["data-equation3-bar-count"] == "2"
     assert "".join(overbar.itertext()) == "x\u203e\u203e"
     assert result.template_selector_counts["17:1:tmOBAR_DOUBLE"] == 1
+
+
+@pytest.mark.parametrize(
+    ("variation", "expected_arrow", "selector_key"),
+    [
+        (0, "\u2190", "46:0:tmUARROW_LEFT"),
+        (1, "\u2192", "46:1:tmUARROW_RIGHT"),
+        (2, "\u2194", "46:2:tmUARROW_BOTH"),
+    ],
+)
+def test_supported_mtef3_under_arrow_template_variations(
+    variation: int, expected_arrow: str, selector_key: str
+) -> None:
+    expression = b"\x01" + _under_arrow(_char(ord("x")), variation=variation) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    under_arrow = next(node for node in root.iter() if local_name(node.tag) == "munder")
+
+    assert under_arrow.attrib["accentunder"] == "true"
+    assert "".join(under_arrow.itertext()) == f"x{expected_arrow}"
+    assert result.template_selector_counts[selector_key] == 1
+
+
+@pytest.mark.parametrize(
+    ("variation", "expected_arrow", "selector_key"),
+    [
+        (0, "\u2190", "47:0:tmOARROW_LEFT"),
+        (1, "\u2192", "47:1:tmOARROW_RIGHT"),
+        (2, "\u2194", "47:2:tmOARROW_BOTH"),
+    ],
+)
+def test_supported_mtef3_over_arrow_template_variations(
+    variation: int, expected_arrow: str, selector_key: str
+) -> None:
+    expression = b"\x01" + _over_arrow(_char(ord("x")), variation=variation) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    over_arrow = next(node for node in root.iter() if local_name(node.tag) == "mover")
+
+    assert over_arrow.attrib["accent"] == "true"
+    assert "".join(over_arrow.itertext()) == f"x{expected_arrow}"
+    assert result.template_selector_counts[selector_key] == 1
+
+
+def test_supported_mtef3_over_arc_template_converts_to_mathml() -> None:
+    expression = b"\x01" + _over_arc(_char(ord("x"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    over_arc = next(node for node in root.iter() if local_name(node.tag) == "mover")
+
+    assert over_arc.attrib["accent"] == "true"
+    assert "".join(over_arc.itertext()) == "x\u2312"
+    assert result.template_selector_counts["48:0:tmOARC"] == 1
 
 
 def test_supported_mtef3_parentheses_template_converts_to_mathml_fence_mrow() -> None:

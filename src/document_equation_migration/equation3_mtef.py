@@ -81,6 +81,13 @@ TEMPLATE_SELECTOR = {
     (44, 0): "tmLSUPER",
     (44, 1): "tmLSUB",
     (44, 2): "tmLSUBSUP",
+    (46, 0): "tmUARROW_LEFT",
+    (46, 1): "tmUARROW_RIGHT",
+    (46, 2): "tmUARROW_BOTH",
+    (47, 0): "tmOARROW_LEFT",
+    (47, 1): "tmOARROW_RIGHT",
+    (47, 2): "tmOARROW_BOTH",
+    (48, 0): "tmOARC",
 }
 BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP", "tmLSUPER", "tmLSUB", "tmLSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2192", "\u2211", "\u222b", "\u220f", "\u2210"}  # →, ∑, ∫, ∏, ∐
@@ -425,7 +432,15 @@ class Mtef3Parser:
             return True
         if len(trailing) == 3 and all(byte == 0xFF for byte in trailing):
             return True
-        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07", b"\x04\x02\x01", b"\x83\x0f\xa0", b"\x65\x77\x20"}:
+        if trailing in {
+            b"\xef\xef\xef",
+            b"\x06\x00\x07",
+            b"\x04\x02\x01",
+            b"\x83\x0f\xa0",
+            b"\x65\x77\x20",
+            b"\x0a\x01\x03",
+            b"\x0a\x1a\x06",
+        }:
             return True
         if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
             return True
@@ -864,6 +879,38 @@ class Mtef3Parser:
             bar = _mathml_node("mo", bar_text)
             bar.set("stretchy", "true")
             node.append(bar)
+            return node
+        if selector in {"tmUARROW_LEFT", "tmUARROW_RIGHT", "tmUARROW_BOTH"}:
+            if not slots:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing main slot.")
+            arrow_text = {"tmUARROW_LEFT": "\u2190", "tmUARROW_RIGHT": "\u2192", "tmUARROW_BOTH": "\u2194"}[selector]
+            node = _mathml_node("munder")
+            node.set("accentunder", "true")
+            node.append(_mrow(slots[0]))
+            arrow = _mathml_node("mo", arrow_text)
+            arrow.set("stretchy", "true")
+            node.append(arrow)
+            return node
+        if selector in {"tmOARROW_LEFT", "tmOARROW_RIGHT", "tmOARROW_BOTH"}:
+            if not slots:
+                raise Equation3MtefError(f"Unsupported {selector} template with missing main slot.")
+            arrow_text = {"tmOARROW_LEFT": "\u2190", "tmOARROW_RIGHT": "\u2192", "tmOARROW_BOTH": "\u2194"}[selector]
+            node = _mathml_node("mover")
+            node.set("accent", "true")
+            node.append(_mrow(slots[0]))
+            arrow = _mathml_node("mo", arrow_text)
+            arrow.set("stretchy", "true")
+            node.append(arrow)
+            return node
+        if selector == "tmOARC":
+            if not slots:
+                raise Equation3MtefError("Unsupported tmOARC template with missing main slot.")
+            node = _mathml_node("mover")
+            node.set("accent", "true")
+            node.append(_mrow(slots[0]))
+            arc = _mathml_node("mo", "\u2312")
+            arc.set("stretchy", "true")
+            node.append(arc)
             return node
         if selector in LIMIT_TEMPLATES:
             if not slots:

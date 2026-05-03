@@ -119,6 +119,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl fraction templates: tmFRACT, tmFRACT_SMALL",
                 "tmpl slash-fraction templates: tmSLFRACT, tmSLFRACT_BASELINE, tmSLFRACT_SMALL",
                 "tmpl bar templates: tmUBAR, tmUBAR_DOUBLE, tmOBAR, tmOBAR_DOUBLE",
+                "tmpl vector templates: tmUARROW_LEFT, tmUARROW_RIGHT, tmUARROW_BOTH, tmOARROW_LEFT, tmOARROW_RIGHT, tmOARROW_BOTH, tmOARC",
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
                 "tmpl limit templates: tmLIM_UPPER, tmLIM_LOWER, tmLIM_BOTH",
                 "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmISUM_LOWER, tmISUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH, tmIPROD_LOWER, tmIPROD_BOTH, tmCOPROD_NO_LIMITS, tmCOPROD_LOWER, tmCOPROD_BOTH, tmINTOP_UPPER, tmINTOP_LOWER, tmINTOP_BOTH",
