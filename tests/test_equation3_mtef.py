@@ -53,6 +53,22 @@ def _leading_subscript(slot: bytes) -> bytes:
     return b"\x03\x2c\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
 
 
+def _superscript(slot: bytes) -> bytes:
+    return b"\x03\x0f\x00\x00" + b"\x11" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x00"
+
+
+def _subsup(sub: bytes, sup: bytes) -> bytes:
+    return b"\x03\x0f\x02\x00" + b"\x0b" + b"\x01" + sub + b"\x00" + b"\x0b" + b"\x01" + sup + b"\x00" + b"\x00"
+
+
+def _leading_superscript(slot: bytes) -> bytes:
+    return b"\x03\x2c\x00\x00" + b"\x11" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x00"
+
+
+def _leading_subsup(sub: bytes, sup: bytes) -> bytes:
+    return b"\x03\x2c\x02\x00" + b"\x0b" + b"\x01" + sub + b"\x00" + b"\x0b" + b"\x01" + sup + b"\x00" + b"\x00"
+
+
 def _fraction(numerator: bytes, denominator: bytes, *, variation: int = 0) -> bytes:
     return (
         b"\x03\x0e"
@@ -241,6 +257,62 @@ def test_supported_mtef3_leading_subscript_template_converts_to_mmultiscripts() 
     assert result.template_selector_counts["44:1:tmLSUB"] == 1
 
 
+def test_supported_mtef3_superscript_template_converts_to_msup() -> None:
+    expression = b"\x0a" + b"\x01" + _char(ord("x")) + _superscript(_char(ord("2"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("msup") == 1
+    assert "".join(root.itertext()) == "x2"
+    assert result.template_selector_counts["15:0:tmSUP"] == 1
+
+
+def test_supported_mtef3_subsup_template_converts_to_msubsup() -> None:
+    expression = b"\x0a" + b"\x01" + _char(ord("x")) + _subsup(_char(ord("i")), _char(ord("2"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("msubsup") == 1
+    assert "".join(root.itertext()) == "xi2"
+    assert result.template_selector_counts["15:2:tmSUBSUP"] == 1
+
+
+def test_supported_mtef3_leading_superscript_template_converts_to_mmultiscripts() -> None:
+    expression = b"\x0a" + b"\x01" + _char(ord("N")) + _leading_superscript(_char(ord("k"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    mmultiscripts = next(node for node in root.iter() if local_name(node.tag) == "mmultiscripts")
+
+    assert mmultiscripts.attrib["data-equation3-script-position"] == "leading"
+    assert "".join(root.itertext()) == "Nk"
+    assert result.template_selector_counts["44:0:tmLSUPER"] == 1
+
+
+def test_supported_mtef3_leading_subsup_template_converts_to_mmultiscripts() -> None:
+    expression = (
+        b"\x0a"
+        + b"\x01"
+        + _char(ord("N"))
+        + _leading_subsup(_char(ord("i")), _char(ord("2")))
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mmultiscripts") == 1
+    assert "".join(root.itertext()) == "Ni2"
+    assert result.template_selector_counts["44:2:tmLSUBSUP"] == 1
+
+
 def test_supported_mtef2_template_child_matrix_converts_inside_fence() -> None:
     result = convert_equation_native_stream_to_mathml(_supported_mtef2_equation_native_stream_with_template_child_matrix())
     root = ET.fromstring(result.mathml_text)
@@ -291,6 +363,7 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
         b"\x06\x00\x07",
         b"\x04\x02\x01",
         b"\x83\x0f\xa0",
+        b"\x65\x77\x20",
         b"\x00" * 8 + b"\x09\x00\x00\x00",
     ],
 )
@@ -487,6 +560,40 @@ def test_supported_mtef3_parentheses_template_converts_to_mathml_fence_mrow() ->
     assert [local_name(node.tag) for node in root.iter()].count("mrow") >= 2
     assert "".join(root.itertext()) == "(x)"
     assert result.template_selector_counts["1:0:tmPAREN"] == 1
+
+
+@pytest.mark.parametrize(
+    ("selector", "variation", "expected_text", "selector_key"),
+    [
+        (0, 0, "\u27e8x\u27e9", "0:0:tmANGLE"),
+        (0, 1, "\u27e8x", "0:1:tmANGLE_LEFT"),
+        (0, 2, "x\u27e9", "0:2:tmANGLE_RIGHT"),
+        (1, 1, "(x", "1:1:tmPAREN_LEFT"),
+        (1, 2, "x)", "1:2:tmPAREN_RIGHT"),
+        (2, 2, "x}", "2:2:tmBRACE_RIGHT"),
+        (3, 1, "[x", "3:1:tmBRACK_LEFT"),
+        (4, 0, "|x|", "4:0:tmBAR"),
+        (4, 1, "|x", "4:1:tmBAR_LEFT"),
+        (4, 2, "x|", "4:2:tmBAR_RIGHT"),
+        (5, 0, "\u2016x\u2016", "5:0:tmDBAR"),
+        (5, 1, "\u2016x", "5:1:tmDBAR_LEFT"),
+        (5, 2, "x\u2016", "5:2:tmDBAR_RIGHT"),
+    ],
+)
+def test_supported_mtef3_parbox_template_variations_render_expected_fences(
+    selector: int,
+    variation: int,
+    expected_text: str,
+    selector_key: str,
+) -> None:
+    expression = b"\x01" + _parbox(selector, _char(ord("x")), variation=variation) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == expected_text
+    assert result.template_selector_counts[selector_key] == 1
 
 
 def test_supported_mtef3_one_sided_bracket_template_preserves_side() -> None:
@@ -809,6 +916,47 @@ def test_supported_mtef3_single_integral_lower_limit_converts_to_munder() -> Non
     assert [local_name(node.tag) for node in root.iter()].count("munder") == 1
     assert "".join(root.itertext()) == "\u222b0x"
     assert result.template_selector_counts["21:1:tmSINT_LOWER"] == 1
+
+
+@pytest.mark.parametrize(
+    ("selector", "variation", "upper", "lower", "main", "operator_codepoint", "expected_text", "selector_key"),
+    [
+        (29, 0, None, _char(ord("i")), _char(ord("a")), 0x2211, "\u2211ia", "29:0:tmSUM_LOWER"),
+        (29, 2, None, None, _char(ord("a")), 0x2211, "\u2211a", "29:2:tmSUM_NO_LIMITS"),
+        (21, 0, None, None, _char(ord("x")), 0x222B, "\u222bx", "21:0:tmSINT_NO_LIMITS"),
+        (21, 2, _char(ord("1")), _char(ord("0")), _char(ord("x")), 0x222B, "\u222b01x", "21:2:tmSINT_BOTH"),
+    ],
+)
+def test_supported_mtef3_bigop_template_variations_without_existing_coverage(
+    selector: int,
+    variation: int,
+    upper: bytes | None,
+    lower: bytes | None,
+    main: bytes,
+    operator_codepoint: int,
+    expected_text: str,
+    selector_key: str,
+) -> None:
+    expression = (
+        b"\x01"
+        + _bigop(
+            selector,
+            variation,
+            main=main,
+            upper=upper,
+            lower=lower,
+            operator_codepoint=operator_codepoint,
+        )
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == expected_text
+    assert result.template_selector_counts[selector_key] == 1
 
 
 def test_supported_mtef3_product_template_with_limits_converts_to_munderover() -> None:

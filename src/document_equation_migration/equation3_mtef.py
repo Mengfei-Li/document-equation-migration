@@ -425,7 +425,7 @@ class Mtef3Parser:
             return True
         if len(trailing) == 3 and all(byte == 0xFF for byte in trailing):
             return True
-        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07", b"\x04\x02\x01", b"\x83\x0f\xa0"}:
+        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07", b"\x04\x02\x01", b"\x83\x0f\xa0", b"\x65\x77\x20"}:
             return True
         if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
             return True
