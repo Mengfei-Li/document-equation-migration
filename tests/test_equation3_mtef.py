@@ -693,6 +693,11 @@ def test_supported_mtef3_parentheses_template_converts_to_mathml_fence_mrow() ->
         (5, 0, "\u2016x\u2016", "5:0:tmDBAR"),
         (5, 1, "\u2016x", "5:1:tmDBAR_LEFT"),
         (5, 2, "x\u2016", "5:2:tmDBAR_RIGHT"),
+        (8, 0, "{x{", "8:0:tmLBLB"),
+        (9, 0, "}x}", "9:0:tmRBRB"),
+        (10, 0, "}x{", "10:0:tmRBLB"),
+        (11, 0, "{x)", "11:0:tmLBRP"),
+        (12, 0, "(x}", "12:0:tmLPRB"),
     ],
 )
 def test_supported_mtef3_parbox_template_variations_render_expected_fences(
