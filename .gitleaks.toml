@@ -1,0 +1,4 @@
+title = "Document Equation Migration Gitleaks configuration"
+
+[extend]
+useDefault = true
