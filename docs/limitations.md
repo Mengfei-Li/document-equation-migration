@@ -26,6 +26,8 @@ Current MathType output is not lossless, pixel-identical, or production-ready wi
 
 Public marker fixtures are detector/routing fixtures only. They are useful for source discovery and dry-run planning, but they are not proof that the live MTEF-to-OMML conversion path works. Real binary MTEF OLE payloads used for local control runs are not included in the public repository unless a fixture record can document the upstream source, SHA-256, license, NOTICE attribution, and artifact hygiene.
 
+Equation Editor 3.0 support is implemented only for the current MTEF v2/v3 source-core slice. It can emit canonical MathML with provenance for supported DOCX OLE embeddings and legacy `.doc` ObjectPool `Equation Native` streams, but it does not claim universal historical Equation Editor 3.0 support or Word/DOCX deliverability. Public Equation3 fixtures are minimized native-stream controls; full upstream `.doc` files are not vendored.
+
 Older MTEF3 payloads may omit the display-mode marker expected by the MathML transform. The pipeline adds a conservative default for that missing-marker case, which is validated on fixture payloads. This should be treated as legacy fixture/toolchain coverage, not proof that every old MathType 3 document is supported without review.
 
 ## Document Structure

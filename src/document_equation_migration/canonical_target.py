@@ -121,7 +121,8 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
         ),
         notes=(
             "The internal binding is limited to the currently implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), observed tmSUM_BOTH omitted-limit slot shapes, character structures, narrow legacy post-END footers, and valid post-END continuation records.",
-            "Do not claim universal Equation Editor 3.0 support or legacy .doc direct ingestion from this limited binding.",
+            "Legacy .doc ingestion is supported only for OLE compound files that expose ObjectPool/*/Equation Native streams matching the implemented limited MTEF slice.",
+            "Do not claim universal Equation Editor 3.0 support from this limited binding.",
             "Do not count Equation.DSMT* / MathType-marked MTEF3 material as Equation Editor 3.0 evidence.",
         ),
     ),

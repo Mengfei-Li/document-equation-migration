@@ -1,6 +1,6 @@
 # Document Equation Migration
 
-Research-grade tools for converting MathType OLE-embedded equations in Word `.docx` files into MathML, OMML, and editable Word equations.
+Research-grade tools for detecting and migrating structured equation sources in Word and related document formats, including MathType OLE, native OMML, Equation Editor 3.0 OLE, ODF MathML, and related bridge sources.
 
 This project is Windows-first because the OMML conversion path uses Microsoft Office's `MML2OMML.XSL`, and the optional PDF validation path uses Word COM automation.
 
@@ -8,7 +8,7 @@ This project is Windows-first because the OMML conversion path uses Microsoft Of
 
 This repository is a research preview, not a guaranteed lossless converter.
 
-The current pipeline is designed for documents whose formulas are stored as MathType OLE objects such as `word/embeddings/oleObject1.bin`. It can batch-convert many OLE-embedded formulas, but complex formulas should still be reviewed before production use.
+The current strongest deliverable-oriented route is still MathType OLE to MathML / OMML / editable Word equations. The detector-first executor also has source-core canonical MathML slices for native OMML, ODF MathML, and an implemented limited Equation Editor 3.0 path.
 
 ## What It Does
 
@@ -24,6 +24,7 @@ The current pipeline is designed for documents whose formulas are stored as Math
 
 - It does not guarantee pixel-identical layout after conversion.
 - It does not guarantee semantic equivalence for every possible MathType equation.
+- It does not claim universal support for every historical Equation Editor 3.0 document.
 - It does not include proprietary or third-party sample documents.
 - It does not vendor a JDK or large third-party runtime binaries.
 - It does not replace legal review for documents that you do not own or cannot redistribute.
@@ -175,7 +176,7 @@ In the current milestone:
 
 - `omml` can execute a native-preserving execution slice that extracts OMML XML fragments, writes a manifest, converts common presentation OMML structures into canonical MathML artifacts, performs a deterministic packaging pass, and records execution metadata
 - `mathtype` is wired to the existing PowerShell/Python document pipeline, but external tools are blocked unless you explicitly pass `--allow-external-tools`; Word validation remains a separate gate
-- `equation3` provides an Equation Editor 3.0 evidence/probe skeleton only; conversion and Word roundtrip stay manual/review gated until fixture coverage is stronger
+- `equation3` provides an internal limited Equation Editor 3.0 MTEF v2/v3 to canonical MathML path for supported DOCX OLE embeddings and legacy `.doc` ObjectPool `Equation Native` streams; Word roundtrip remains downstream and is not claimed
 - `axmath` is export-assisted and stays behind external export / validation gates; the project does not claim a native static AxMath parser, and canonical MathML evidence must come from reviewed export artifacts or a validated conversion step
 - `odf-native` can execute a native MathML extraction slice from ODF/FODT content, while `libreoffice-transformed` remains a bridge provenance review gate
 - render parity, Word opening, and PDF export are still validation gates; an execution report alone is not proof of deliverable Word output
@@ -246,6 +247,8 @@ Current real MathType evidence supports the guarded layout-preservation path as 
 
 For a structured statement of the current claim boundary, evidence classes, and manual-review gate, see [MathType evidence pack](docs/mathtype-evidence.md).
 
+For the current Equation Editor 3.0 source-core claim boundary and public native-stream fixtures, see [Equation Editor 3.0 evidence pack](docs/equation3-evidence.md).
+
 Before using a `review-gated` output in production, review the generated PDF, inspect changed pages, spot-check high-risk formulas, and keep the source document available for comparison.
 
 Run the current test gate:
@@ -297,6 +300,7 @@ python .\compare_pdf_visual.py .\original.pdf .\converted.pdf .\out\visual_compa
 - [Dependencies](docs/dependencies.md)
 - [Limitations](docs/limitations.md)
 - [MathType evidence pack](docs/mathtype-evidence.md)
+- [Equation Editor 3.0 evidence pack](docs/equation3-evidence.md)
 - [Research-preview release notes](docs/research-preview-release-notes.md)
 
 ## License

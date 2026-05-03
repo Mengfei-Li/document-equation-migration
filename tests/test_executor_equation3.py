@@ -381,13 +381,17 @@ def test_equation3_provider_rejects_wrong_source_family(tmp_path: Path) -> None:
         execute_equation3_step(step, _execution_context(tmp_path))
 
 
-def test_equation3_fixture_admissibility_keeps_public_promotion_gated() -> None:
+def test_equation3_fixture_admissibility_records_public_fixture_boundary() -> None:
     requirements = equation3_fixture_admissibility_requirements()
 
     assert requirements["target_stage"] == "fixture-backed-canonical-mathml-conversion"
-    assert "real Equation.3" in requirements["minimum_fixture_set"]
+    assert "Equation.3 native payload" in requirements["minimum_fixture_set"]
+    assert "Minimal Apache-derived Equation Native stream controls" in requirements["current_public_fixture_status"]
     assert "preview-only fixture" in requirements["disqualifying_conditions"]
     assert "unclear redistribution or use permission for public fixture promotion" in requirements[
+        "disqualifying_conditions"
+    ]
+    assert "whole-document public fixture promotion without source license and NOTICE review" in requirements[
         "disqualifying_conditions"
     ]
     assert any("Canonical MathML output validates" in item for item in requirements["promotion_gate"])

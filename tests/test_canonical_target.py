@@ -32,4 +32,5 @@ def test_equation3_contract_names_current_bigop_slice() -> None:
     notes = "\n".join(contract["notes"])
 
     assert "BigOp (sum/integral/product/coproduct/integral-op)" in notes
+    assert "ObjectPool/*/Equation Native" in notes
     assert "universal Equation Editor 3.0 support" in notes

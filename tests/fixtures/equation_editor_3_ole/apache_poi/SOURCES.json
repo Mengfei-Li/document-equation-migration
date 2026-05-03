@@ -1,0 +1,100 @@
+{
+  "artifact_type": "equation3-public-minimal-fixture-sources",
+  "source_project": "Apache POI",
+  "source_project_url": "https://github.com/apache/poi",
+  "source_commit": "e6a04b49211e23c704fcdbe524d99d2f4486b083",
+  "license": "Apache-2.0",
+  "notice": "See repository NOTICE.md, THIRD_PARTY_LICENSES/Apache-POI-LICENSE.txt, and THIRD_PARTY_NOTICES/Apache-POI-NOTICE.txt.",
+  "fixture_policy": "Minimal Apache-derived Equation Native stream controls; full source .doc files are not vendored.",
+  "safety": [
+    "No Word or OLE server execution is required.",
+    "The fixture files are hex-encoded native streams, not whole Office documents.",
+    "The negative control preserves an unsupported parser case instead of guessing MathML."
+  ],
+  "fixtures": [
+    {
+      "fixture_id": "apache_poi_bug61268_formula0001",
+      "file_name": "apache_poi_bug61268_formula0001.equation-native.hex",
+      "source_doc": "Bug61268.doc",
+      "source_doc_sha256": "24b47ad892871c80495c64b440c24200dbcaa16c367faf780aec43e3bf8ddae6",
+      "source_url": "https://raw.githubusercontent.com/apache/poi/e6a04b49211e23c704fcdbe524d99d2f4486b083/test-data/document/Bug61268.doc",
+      "source_commit": "e6a04b49211e23c704fcdbe524d99d2f4486b083",
+      "source_stream": "ObjectPool/_1393240891/Equation Native",
+      "source_formula_id": "equation-editor-3-ole-0001",
+      "expected_status": "converts",
+      "equation_native_sha256": "7c8081bc5e92309b352ffd982f88fa760f6e6c259267368ffbf303400d15af1a",
+      "size_bytes": 65,
+      "mtef_version": 3,
+      "mtef_generating_product": 1,
+      "conversion_status": "converts",
+      "canonical_sha256": "05db442230de132743d5ec6d53c5a54080fd07aed8b27c611ca715d9fdf8bfb7",
+      "mtef_payload_sha256": "2bca5a1fd1b66a0005b6b8ad3bbb97c000754dba6578e8521fb3a425a381fb6a",
+      "mathml_text": "P=αG+kG",
+      "template_selector_counts": {},
+      "typeface_counts": {
+        "3:fnVARIABLE": 4,
+        "4:fnLCGREEK": 1,
+        "6:fnSYMBOL": 2
+      },
+      "record_counts": {
+        "0": 2,
+        "1": 1,
+        "2": 7,
+        "10": 1
+      }
+    },
+    {
+      "fixture_id": "apache_poi_bug61268_formula0003",
+      "file_name": "apache_poi_bug61268_formula0003.equation-native.hex",
+      "source_doc": "Bug61268.doc",
+      "source_doc_sha256": "24b47ad892871c80495c64b440c24200dbcaa16c367faf780aec43e3bf8ddae6",
+      "source_url": "https://raw.githubusercontent.com/apache/poi/e6a04b49211e23c704fcdbe524d99d2f4486b083/test-data/document/Bug61268.doc",
+      "source_commit": "e6a04b49211e23c704fcdbe524d99d2f4486b083",
+      "source_stream": "ObjectPool/_1393240981/Equation Native",
+      "source_formula_id": "equation-editor-3-ole-0003",
+      "expected_status": "converts",
+      "equation_native_sha256": "7063d0a69921410d0031b66ec7660c5b204338caca62113cd9e55dc86a74e8e1",
+      "size_bytes": 72,
+      "mtef_version": 3,
+      "mtef_generating_product": 1,
+      "conversion_status": "converts",
+      "canonical_sha256": "0e37d012cb8e912dfd8e0389bf8a2b21d94ba175b3f8ca03d11f9b560e56e654",
+      "mtef_payload_sha256": "29efaab1227baf31c6adaf0721709093c64d6521d73eb9ef82d805f8d0cc3da3",
+      "mathml_text": "[1,n−1]",
+      "template_selector_counts": {
+        "3:0:tmBRACK": 1
+      },
+      "typeface_counts": {
+        "22:fnEXPAND": 2,
+        "2:fnFUNCTION": 1,
+        "3:fnVARIABLE": 1,
+        "6:fnSYMBOL": 1,
+        "8:fnNUMBER": 2
+      },
+      "record_counts": {
+        "0": 4,
+        "1": 2,
+        "2": 7,
+        "3": 1,
+        "10": 1
+      }
+    },
+    {
+      "fixture_id": "apache_poi_bug50936_1_formula0013_selector43v2",
+      "file_name": "apache_poi_bug50936_1_formula0013_selector43v2.equation-native.hex",
+      "source_doc": "Bug50936_1.doc",
+      "source_doc_sha256": "9169e7a5f5aa865579ceb803bd91bd840134e9292c8a56e81c35913b47e218c7",
+      "source_url": "https://raw.githubusercontent.com/apache/poi/e6a04b49211e23c704fcdbe524d99d2f4486b083/test-data/document/Bug50936_1.doc",
+      "source_commit": "e6a04b49211e23c704fcdbe524d99d2f4486b083",
+      "source_stream": "ObjectPool/_1018193555/Equation Native",
+      "source_formula_id": "equation-editor-3-ole-0013",
+      "expected_status": "unsupported-selector-43-variation-2",
+      "equation_native_sha256": "ede6f9e11a49c4c4ac05c1d31b249653e020a2cd19469ff1ef8074fe565cc9b4",
+      "size_bytes": 472,
+      "mtef_version": 3,
+      "mtef_generating_product": 1,
+      "conversion_status": "unsupported",
+      "expected_error": "Unsupported template selector=43 variation=2 at offset 59."
+    }
+  ]
+}

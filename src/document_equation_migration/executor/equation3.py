@@ -29,8 +29,13 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
     return {
         "target_stage": "fixture-backed-canonical-mathml-conversion",
         "minimum_fixture_set": (
-            "At least one redistributable or explicitly authorized DOCX or legacy DOC containing a real "
-            "Equation.3 native OLE payload, not only a preview image or marker payload."
+            "At least one redistributable or explicitly authorized Equation.3 native payload. Public tests may use "
+            "minimal Equation Native stream controls; whole-document DOCX or legacy DOC fixture promotion requires "
+            "separate redistribution review."
+        ),
+        "current_public_fixture_status": (
+            "Minimal Apache-derived Equation Native stream controls are included for parser conversion and unsupported "
+            "regression coverage. Full source Word .doc files are not vendored."
         ),
         "required_candidate_properties": [
             {
@@ -97,6 +102,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
             "conflicting MathType or AxMath vendor signal",
             "no valid canonical MathML output",
             "unclear redistribution or use permission for public fixture promotion",
+            "whole-document public fixture promotion without source license and NOTICE review",
         ],
         "promotion_gate": [
             "Detector evidence proves native Equation.3 source identity.",

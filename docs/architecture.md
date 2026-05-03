@@ -28,7 +28,7 @@ Current source-line contracts:
 
 - MathType OLE: Equation Native / MTEF to normalized MathML, gated by external converter prerequisites.
 - OMML native: internal basic OMML-to-canonical-MathML conversion for common presentation structures.
-- Equation Editor 3.0: fixture-gated MTEF v3 candidate path, with no conversion claim until stronger fixtures exist.
+- Equation Editor 3.0: implemented limited internal MTEF v2/v3 to canonical MathML path for supported DOCX OLE embeddings and legacy `.doc` `ObjectPool/*/Equation Native` streams.
 - AxMath: export-assisted path requiring reviewed canonical MathML artifacts, or LaTeX plus a separately validated LaTeX-to-MathML step.
 - ODF native: preserves existing ODF MathML as canonical MathML artifacts.
 - LibreOffice-transformed: bridge provenance review gate, not a native source claim.

@@ -4,12 +4,15 @@ This repository is a research-preview release, not a production-ready or lossles
 
 For a consolidated explanation of the current MathType claim boundary, see [MathType evidence pack](mathtype-evidence.md).
 
+For the Equation Editor 3.0 source-core claim boundary, see [Equation Editor 3.0 evidence pack](equation3-evidence.md).
+
 ## Release Positioning
 
 This release should be understood as follows:
 
 - `document-equation-migration` is a research-preview toolkit for detecting formula sources and experimenting with source-first migration paths.
 - The current strongest live conversion path is MathType OLE to MathML to OMML to editable Word equations.
+- Equation Editor 3.0 has an implemented limited source-core path to canonical MathML, not a Word replacement or universal-conversion claim.
 - Current MathType outputs can be useful for editing, search, review, and downstream processing.
 - Current MathType outputs still require human review before production use.
 
@@ -41,6 +44,22 @@ The current evidence does not support these claims:
 - visual gate pass for current guarded real-sample outputs
 - public live-convertible fixture coverage
 
+## Equation Editor 3.0 Evidence Summary
+
+The current evidence supports the following limited claims:
+
+- supported Equation Editor 3.0 native payloads can be converted to canonical MathML through the internal MTEF v2/v3 path
+- legacy binary Word `.doc` ObjectPool `Equation Native` streams are a supported source surface for that limited path
+- public Apache-derived native-stream controls exist for conversion-positive and unsupported-regression coverage
+- unsupported Equation3 structures produce blocker evidence instead of guessed MathML
+
+The current evidence does not support these claims:
+
+- universal Equation Editor 3.0 support
+- a statistically valid global historical coverage percentage
+- Word visual fill-back, DOCX/PDF deliverability, or pixel parity for Equation3 output
+- treating MathType, `Equation.DSMT*`, or AxMath material as Equation Editor 3.0 evidence
+
 ## Release-Facing Status Terms
 
 Use these terms consistently:
@@ -58,7 +77,7 @@ Public marker fixtures are for detector, routing, and dry-run tests. They are no
 
 Real binary MTEF OLE payloads may be used as local research controls under `research-artifacts/`, but they are not automatically approved as public fixtures.
 
-A public live-convertible fixture requires a separate task that records:
+Public live-convertible native payload controls require:
 
 - upstream source path
 - SHA-256

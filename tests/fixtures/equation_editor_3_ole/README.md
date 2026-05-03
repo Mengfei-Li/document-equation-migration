@@ -1,6 +1,6 @@
-# Equation Editor 3.0 Detector Fixtures
+# Equation Editor 3.0 Fixtures
 
-This directory contains only minimal synthetic test fixtures. It does not contain real private documents.
+This directory contains minimal Equation Editor 3.0 fixtures. It does not contain private documents or full source Word files.
 
 - `document_equation3.xml` / `document_equation3.rels.xml`
   - Positive `Equation.3` case in the main document story.
@@ -14,3 +14,9 @@ This directory contains only minimal synthetic test fixtures. It does not contai
   - Synthetic `EQNOLEFILEHDR + MTEF v3` payload.
 - `mathtype_like_payload.hex`
   - Synthetic non-Equation Editor 3.0 payload.
+
+## Apache POI native-stream controls
+
+- `apache_poi/`
+  - Minimal Apache-derived `Equation Native` stream controls with Apache-2.0 attribution and fixed upstream source metadata.
+  - The full upstream `.doc` files are not vendored in the public fixture tree.
