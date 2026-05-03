@@ -8,23 +8,30 @@ This project is Windows-first because the OMML conversion path uses Microsoft Of
 
 This repository is a research preview, not a guaranteed lossless converter.
 
+Current published release: `v0.2.0-research-preview`.
+
 The current strongest deliverable-oriented route is still MathType OLE to MathML / OMML / editable Word equations. The detector-first executor also has source-core canonical MathML slices for native OMML, ODF MathML, and an implemented limited Equation Editor 3.0 path.
 
 ## What It Does
 
 - Extracts `oleObject*.bin` files from a Word `.docx`.
+- Scans supported DOCX, legacy `.doc` OLE, and ODF/FODT containers for formula source evidence.
+- Writes formula-source manifests, routing reports, execution plans, canonical-target contracts, and evidence/blocker records.
 - Converts MathType OLE / MTEF content to intermediate XML.
 - Converts the intermediate XML to MathML.
 - Normalizes common MathML defects found in MathType-to-MathML conversion output.
 - Converts MathML to OMML with Office's `MML2OMML.XSL`.
 - Replaces OLE formula objects in a copy of the original `.docx`.
 - Produces a LaTeX validation preview and risk classification output.
+- Converts the implemented limited Equation Editor 3.0 MTEF v2/v3 slice to canonical MathML with provenance for supported payloads.
 
 ## What It Does Not Promise
 
 - It does not guarantee pixel-identical layout after conversion.
 - It does not guarantee semantic equivalence for every possible MathType equation.
 - It does not claim universal support for every historical Equation Editor 3.0 document.
+- It does not claim a statistically valid global Equation Editor 3.0 coverage percentage.
+- It does not claim Word/DOCX/PDF deliverability for Equation Editor 3.0 output.
 - It does not include proprietary or third-party sample documents.
 - It does not vendor a JDK or large third-party runtime binaries.
 - It does not replace legal review for documents that you do not own or cannot redistribute.
