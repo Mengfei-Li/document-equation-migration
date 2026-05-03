@@ -691,9 +691,18 @@ class Mtef3Parser:
         node = base
 
         accent_map = {
+            2: ("\u02d9", False),  # emb1DOT
+            3: ("\u00a8", False),  # emb2DOT
             8: ("~", False),  # embTILDE
             9: ("^", False),  # embHAT
+            11: ("\u2192", True),  # embRARROW
+            12: ("\u2190", True),  # embLARROW
+            13: ("\u2194", True),  # embBARROW
+            14: ("\u21c0", True),  # embR1ARROW
+            15: ("\u21bc", True),  # embL1ARROW
             17: ("\u203e", True),  # embOBAR
+            19: ("\u2322", True),  # embFROWN
+            20: ("\u2323", True),  # embSMILE
         }
 
         for embell_id in dict.fromkeys(embells):

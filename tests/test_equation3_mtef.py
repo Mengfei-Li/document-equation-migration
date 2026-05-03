@@ -41,6 +41,9 @@ def _char_with_overbar(codepoint: int) -> bytes:
     # CHAR record with xfEMBELL (0x2), followed by an EMBELL list containing embOBAR (17) and END (0).
     return _char(codepoint, options=2) + b"\x06\x11\x00"
 
+def _char_with_embellishment(codepoint: int, embell_id: int) -> bytes:
+    return _char(codepoint, options=2) + b"\x06" + bytes([embell_id]) + b"\x00"
+
 
 def _subscript(slot: bytes) -> bytes:
     return b"\x03\x0f\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
@@ -522,6 +525,45 @@ def test_supported_mtef3_char_embellishment_overbar_converts_to_mathml() -> None
 
     assert [local_name(node.tag) for node in root.iter()].count("mover") == 1
     assert "".join(root.itertext()) == "x\u203e"
+    assert result.record_counts["6"] == 1
+
+
+@pytest.mark.parametrize(
+    ("embell_id", "expected_accent", "stretchy"),
+    [
+        (2, "\u02d9", False),  # emb1DOT
+        (3, "\u00a8", False),  # emb2DOT
+        (11, "\u2192", True),  # embRARROW
+        (12, "\u2190", True),  # embLARROW
+        (13, "\u2194", True),  # embBARROW
+        (14, "\u21c0", True),  # embR1ARROW
+        (15, "\u21bc", True),  # embL1ARROW
+        (19, "\u2322", True),  # embFROWN
+        (20, "\u2323", True),  # embSMILE
+    ],
+)
+def test_supported_mtef3_char_embellishment_accent_variants_convert_to_mathml(
+    embell_id: int, expected_accent: str, stretchy: bool
+) -> None:
+    expression = b"\x01" + _char_with_embellishment(ord("x"), embell_id) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert [local_name(node.tag) for node in root.iter()].count("mover") == 1
+    mover = next(node for node in root.iter() if local_name(node.tag) == "mover")
+    assert mover.attrib["accent"] == "true"
+
+    accent = list(mover)[1]
+    assert local_name(accent.tag) == "mo"
+    assert accent.text == expected_accent
+    if stretchy:
+        assert accent.attrib["stretchy"] == "true"
+    else:
+        assert "stretchy" not in accent.attrib
+
+    assert "".join(root.itertext()) == f"x{expected_accent}"
     assert result.record_counts["6"] == 1
 
 

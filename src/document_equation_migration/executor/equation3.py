@@ -68,7 +68,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                     "The current internal converter is limited to the observed and synthetic-covered MTEF v2/v3 script, "
                     "root, fraction, slash-fraction, bar, fence, limit, matrix, pile, "
                     "BigOp (sum/integral/product/coproduct/integral-op), standalone sum operator, character structures, "
-                    "and narrow legacy post-END footers."
+                    "supported embellishments, and narrow legacy post-END footers."
                 ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
@@ -128,7 +128,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "MTEF v2 fnSPACE records mapped to MathML mspace with source char-code evidence",
                 "MTEF v2/v3 fnLCGREEK/fnUCGREEK ASCII glyph positions mapped to Unicode Greek where known",
                 "font/size/ruler records as ignored formatting metadata",
-                "embellishment records parsed; tilde/hat/overbar mapped to mover and prime mapped to msup (others currently ignored)",
+                "embellishment records parsed; dot/tilde/hat/overbar/arrow/arc mapped to mover and prime mapped to msup (others currently ignored)",
                 "legacy Equation Native post-END footers: observed short footer envelopes only (ignored)",
             ],
             "unsupported_records": [
