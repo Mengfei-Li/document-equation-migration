@@ -25,6 +25,11 @@ The payload SHA-256 is:
 
 This repository includes a small patch file for `jure/mathtype_to_mathml` under `patches/`. The patch is distributed as part of this repository's MIT-licensed integration code, but it applies to a third-party codebase whose original license terms still apply.
 
+The retained license / notice files for this MathType / MTEF tooling material are:
+
+- `THIRD_PARTY_LICENSES/Jure-MathType-MIT-LICENSE.txt`
+- `THIRD_PARTY_NOTICES/MathType-MTEF-Tooling-NOTICE.txt`
+
 This repository includes minimal Equation Editor 3.0 `Equation Native` stream controls derived from Apache POI test data under:
 
 - `tests/fixtures/equation_editor_3_ole/apache_poi/`

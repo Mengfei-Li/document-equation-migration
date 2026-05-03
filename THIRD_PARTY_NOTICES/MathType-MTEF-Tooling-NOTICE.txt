@@ -1,0 +1,35 @@
+This project can interoperate with external MathType / MTEF conversion
+projects when users explicitly install and enable those tools.
+
+External projects referenced by the public pipeline:
+
+- transpect/mathtype-extension
+- jure/mathtype_to_mathml
+- jure/mathtype, as incorporated by transpect/mathtype-extension
+
+The full external repositories are not vendored in this repository.
+Users who install or vendor them must follow those projects' licenses
+and retain their notices.
+
+This repository includes one minimal public MathType live-control
+fixture derived from:
+
+- project snapshot: transpect/mathtype-extension
+- snapshot commit: c1f788c7857802193220d370894ae52a2ce40d6c
+- nested source path:
+  ruby/mathtype-0.0.7.5/spec/fixtures/input/mathtype5/equation1.bin
+- payload SHA-256:
+  9f53c650efc68c5c94952892a5432a7bbc6966558a5cc7de6f7c0581ead14d4e
+
+The nested mathtype gem identifies this material as MIT licensed with:
+
+- Copyright (c) 2015 Jure Triglav
+
+This repository also includes a patch file for jure/mathtype_to_mathml:
+
+- patches/mathtype_to_mathml-quality-fixes.patch
+
+The patch is maintained as part of this repository's integration code,
+but it applies to the third-party mathtype_to_mathml codebase, whose
+original MIT license terms still apply. The retained MIT license text is
+available in THIRD_PARTY_LICENSES/Jure-MathType-MIT-LICENSE.txt.
