@@ -78,8 +78,11 @@ TEMPLATE_SELECTOR = {
     (42, 1): "tmINTOP_LOWER",
     (42, 2): "tmINTOP_BOTH",
     (43, 0): "tmSUMOP",
+    (44, 0): "tmLSUPER",
+    (44, 1): "tmLSUB",
+    (44, 2): "tmLSUBSUP",
 }
-BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP"}
+BASE_CONSUMING_TEMPLATES = {"tmSUP", "tmSUB", "tmSUBSUP", "tmLSUPER", "tmLSUB", "tmLSUBSUP"}
 OPERATOR_CHARS = set("=+-*/(),[]{}") | {"\u2192", "\u2211", "\u222b", "\u220f", "\u2210"}  # →, ∑, ∫, ∏, ∐
 BIGOP_TEMPLATES = {
     "tmSINT_NO_LIMITS",
@@ -102,6 +105,8 @@ BIGOP_TEMPLATES = {
     "tmINTOP_LOWER",
     "tmINTOP_BOTH",
 }
+SUM_BIGOP_TEMPLATES = {"tmSUM_NO_LIMITS", "tmSUM_LOWER", "tmSUM_BOTH", "tmISUM_LOWER", "tmISUM_BOTH"}
+SUM_OPERATOR_SOURCE_TEXTS = {"\u2211", "\uec07", "\uec08"}
 INTEGRAL_STYLE_BIGOP_TEMPLATES = {
     "tmISUM_LOWER",
     "tmISUM_BOTH",
@@ -280,6 +285,10 @@ def _char_to_mathml(mt_code: int, typeface: int | None = None) -> ET.Element:
     return _mathml_node("mi", character)
 
 
+def _codepoint_list(value: str) -> str:
+    return ",".join(f"U+{ord(character):04X}" for character in value)
+
+
 def _serialize_mathml(root: ET.Element) -> str:
     return ET.tostring(root, encoding="unicode", short_empty_elements=True)
 
@@ -381,11 +390,9 @@ class Mtef3Parser:
 
         children = self.parse_sequence_until_end()
         if self.offset != len(self.data):
-            trailing = self.data[self.offset :]
-            # Some legacy Equation Native streams include a short footer after the final END record.
-            # Keep the accepted envelope narrow so unsupported record families still block.
-            if not self._is_supported_legacy_footer(trailing):
-                raise Equation3MtefError(f"Parser stopped with {len(trailing)} trailing bytes.")
+            # Some legacy Equation Native streams include either a short footer or a valid
+            # continuation sequence after the first top-level END record.
+            self.parse_post_end_continuation(children)
 
         root = _mathml_node("math")
         root.set("display", "block")
@@ -418,7 +425,7 @@ class Mtef3Parser:
             return True
         if len(trailing) == 3 and all(byte == 0xFF for byte in trailing):
             return True
-        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07"}:
+        if trailing in {b"\xef\xef\xef", b"\x06\x00\x07", b"\x04\x02\x01", b"\x83\x0f\xa0"}:
             return True
         if len(trailing) == 3 and (trailing[0] == 0 or trailing[-1] == 0):
             return True
@@ -427,6 +434,23 @@ class Mtef3Parser:
             and trailing[:8] == b"\x00" * 8
             and trailing[9:] == b"\x00\x00\x00"
         )
+
+    def parse_post_end_continuation(self, children: list[ET.Element]) -> None:
+        while self.offset != len(self.data):
+            trailing = self.data[self.offset :]
+            if self._is_supported_legacy_footer(trailing):
+                return
+
+            start = self.offset
+            try:
+                continuation = self.parse_sequence_until_end()
+            except Equation3MtefError as exc:
+                self.offset = start
+                raise Equation3MtefError(f"Parser stopped with {len(trailing)} trailing bytes.") from exc
+
+            if self.offset == start:
+                raise Equation3MtefError(f"Parser stopped with {len(trailing)} trailing bytes.")
+            children.extend(continuation)
 
     def parse_sequence_until_end(self) -> list[ET.Element]:
         output: list[ET.Element] = []
@@ -502,6 +526,7 @@ class Mtef3Parser:
 
         rows: list[list[ET.Element]] = []
         while True:
+            record_start = self.offset
             tag = self.read_u8()
             child_options = tag >> 4
             record_type = tag & 0x0F
@@ -511,12 +536,15 @@ class Mtef3Parser:
                 break
             if record_type in {10, 11, 12, 13, 14}:
                 continue
+            if record_type != 1:
+                self.offset = record_start
+                self.record_counts[record_type] -= 1
+                if self.record_counts[record_type] <= 0:
+                    del self.record_counts[record_type]
+                rows.append(self.parse_sequence_until_end())
+                break
             if child_options & 0x08:
                 self.skip_nudge()
-            if record_type != 1:
-                raise Equation3MtefError(
-                    f"Unsupported pile object record type {record_type} at offset {self.offset - 1}."
-                )
             rows.append(self.parse_line_contents(child_options))
 
         table = _mathml_node("mtable")
@@ -766,6 +794,26 @@ class Mtef3Parser:
             node.append(_mrow(slots[0] if slots else []))
             node.append(_mrow(slots[1] if len(slots) > 1 else []))
             return node
+        if selector in {"tmLSUPER", "tmLSUB", "tmLSUBSUP"}:
+            node = _mathml_node("mmultiscripts")
+            node.set("data-equation3-script-position", "leading")
+            node.append(base)
+            node.append(_mathml_node("none"))
+            node.append(_mathml_node("none"))
+            node.append(_mathml_node("mprescripts"))
+            sub = slots[0] if slots else []
+            sup = slots[1] if len(slots) > 1 else []
+            if selector == "tmLSUPER":
+                node.append(_mathml_node("none"))
+                node.append(_mrow(sup))
+                return node
+            if selector == "tmLSUB":
+                node.append(_mrow(sub))
+                node.append(_mathml_node("none"))
+                return node
+            node.append(_mrow(sub))
+            node.append(_mrow(sup))
+            return node
         if selector == "tmROOT":
             node = _mathml_node("msqrt")
             radicand = slots[-1] if slots else []
@@ -859,25 +907,44 @@ class Mtef3Parser:
         if selector in BIGOP_TEMPLATES:
             if not slots:
                 raise Equation3MtefError(f"Unsupported {selector} template with empty subobject list.")
-            if not slots[-1]:
+            operator_slot = slots[-1]
+            slot_items = slots[:-1]
+            embedded_operator_slot = False
+            if selector == "tmSUM_BOTH" and len(slots) == 1 and len(slots[0]) > 1:
+                candidate_operator_text = "".join(slots[0][-1].itertext())
+                if candidate_operator_text in SUM_OPERATOR_SOURCE_TEXTS:
+                    operator_slot = [slots[0][-1]]
+                    slot_items = [slots[0][:-1]]
+                    embedded_operator_slot = True
+            if not operator_slot:
                 raise Equation3MtefError(f"Unsupported {selector} template with missing operator character.")
 
-            operator_text = "".join(slots[-1][0].itertext())
+            operator_source_text = "".join(operator_slot[0].itertext())
+            operator_text = operator_source_text
+            if selector in SUM_BIGOP_TEMPLATES and operator_text in SUM_OPERATOR_SOURCE_TEXTS:
+                operator_text = "\u2211"
             operator = _mathml_node("mo", operator_text)
             operator.set("largeop", "true")
             operator.set("movablelimits", "true")
+            if operator_source_text != operator_text:
+                operator.set("data-equation3-operator-source-codepoint", _codepoint_list(operator_source_text))
+            if embedded_operator_slot:
+                operator.set("data-equation3-operator-slot-shape", "embedded-in-main-line")
 
-            slot_items = slots[:-1]
             if not slot_items:
                 raise Equation3MtefError(f"Unsupported {selector} template with missing main slot.")
             main = slot_items[0]
             upper: list[ET.Element] = []
             lower: list[ET.Element] = []
+            missing_limit_slots: str | None = None
             if selector.endswith("_BOTH"):
-                if len(slot_items) < 3:
+                if len(slot_items) >= 3:
+                    upper = slot_items[1]
+                    lower = slot_items[2]
+                elif selector == "tmSUM_BOTH" and len(slot_items) == 1:
+                    missing_limit_slots = "both"
+                else:
                     raise Equation3MtefError(f"Unsupported {selector} template with missing limit slots.")
-                upper = slot_items[1]
-                lower = slot_items[2]
             elif selector.endswith("_UPPER"):
                 if len(slot_items) < 2:
                     raise Equation3MtefError(f"Unsupported {selector} template with missing upper limit slot.")
@@ -893,10 +960,14 @@ class Mtef3Parser:
             bigop: ET.Element
             if selector in INTEGRAL_STYLE_BIGOP_TEMPLATES:
                 if selector.endswith("_BOTH"):
-                    bigop = _mathml_node("msubsup")
-                    bigop.append(operator)
-                    bigop.append(_mrow(lower))
-                    bigop.append(_mrow(upper))
+                    if missing_limit_slots == "both":
+                        bigop = operator
+                        bigop.set("data-equation3-missing-limit-slots", "both")
+                    else:
+                        bigop = _mathml_node("msubsup")
+                        bigop.append(operator)
+                        bigop.append(_mrow(lower))
+                        bigop.append(_mrow(upper))
                 elif selector.endswith("_UPPER"):
                     if not upper:
                         raise Equation3MtefError(f"Unsupported {selector} template with missing upper limit slot.")
@@ -910,10 +981,14 @@ class Mtef3Parser:
                 bigop.set("data-equation3-limit-style", "integral")
             else:
                 if selector.endswith("_BOTH"):
-                    bigop = _mathml_node("munderover")
-                    bigop.append(operator)
-                    bigop.append(_mrow(lower))
-                    bigop.append(_mrow(upper))
+                    if missing_limit_slots == "both":
+                        bigop = operator
+                        bigop.set("data-equation3-missing-limit-slots", "both")
+                    else:
+                        bigop = _mathml_node("munderover")
+                        bigop.append(operator)
+                        bigop.append(_mrow(lower))
+                        bigop.append(_mrow(upper))
                 elif selector.endswith("_LOWER"):
                     bigop = _mathml_node("munder")
                     bigop.append(operator)

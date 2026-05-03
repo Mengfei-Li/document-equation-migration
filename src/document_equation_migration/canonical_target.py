@@ -120,7 +120,7 @@ _CONTRACTS: dict[SourceFamily, CanonicalMathMLContract] = {
             "source-to-canonical provenance for every accepted artifact",
         ),
         notes=(
-            "The internal binding is limited to the currently implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), character structures, and narrow legacy post-END footers.",
+            "The internal binding is limited to the currently implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp (sum/integral/product/coproduct/integral-op), observed tmSUM_BOTH omitted-limit slot shapes, character structures, narrow legacy post-END footers, and valid post-END continuation records.",
             "Do not claim universal Equation Editor 3.0 support or legacy .doc direct ingestion from this limited binding.",
             "Do not count Equation.DSMT* / MathType-marked MTEF3 material as Equation Editor 3.0 evidence.",
         ),

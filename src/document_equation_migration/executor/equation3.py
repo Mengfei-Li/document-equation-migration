@@ -68,7 +68,8 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                     "The current internal converter is limited to the observed and synthetic-covered MTEF v2/v3 script, "
                     "root, fraction, slash-fraction, bar, fence, limit, matrix, pile, "
                     "BigOp (sum/integral/product/coproduct/integral-op), standalone sum operator, character structures, "
-                    "supported embellishments, and narrow legacy post-END footers."
+                    "supported embellishments, narrow legacy post-END handling, and observed tmSUM_BOTH omitted-limit "
+                    "slot shapes."
                 ),
                 "evidence_fields": (
                     "canonical-mathml/*.xml",
@@ -113,7 +114,7 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
             "supported_records": [
                 "slot",
                 "char",
-                "tmpl script templates: tmSUP, tmSUB, tmSUBSUP",
+                "tmpl script templates: tmSUP, tmSUB, tmSUBSUP, tmLSUPER, tmLSUB, tmLSUBSUP",
                 "tmpl root templates: tmROOT, tmNTHROOT",
                 "tmpl fraction templates: tmFRACT, tmFRACT_SMALL",
                 "tmpl slash-fraction templates: tmSLFRACT, tmSLFRACT_BASELINE, tmSLFRACT_SMALL",
@@ -121,15 +122,16 @@ def equation3_fixture_admissibility_requirements() -> dict[str, object]:
                 "tmpl fence templates: tmANGLE, tmPAREN, tmBRACE, tmBRACK, tmBAR, tmDBAR, tmFLOOR, tmCEILING",
                 "tmpl limit templates: tmLIM_UPPER, tmLIM_LOWER, tmLIM_BOTH",
                 "tmpl BigOp templates: tmSINT_NO_LIMITS, tmSINT_LOWER, tmSINT_BOTH, tmSUM_NO_LIMITS, tmSUM_LOWER, tmSUM_BOTH, tmISUM_LOWER, tmISUM_BOTH, tmPROD_NO_LIMITS, tmPROD_LOWER, tmPROD_BOTH, tmIPROD_LOWER, tmIPROD_BOTH, tmCOPROD_NO_LIMITS, tmCOPROD_LOWER, tmCOPROD_BOTH, tmINTOP_UPPER, tmINTOP_LOWER, tmINTOP_BOTH",
+                "observed tmSUM_BOTH omitted-limit slot shapes with fnEXPAND sum operator source-code evidence",
                 "tmpl standalone operator templates: tmSUMOP",
                 "matrix records with supported line-based cells",
-                "pile records with supported line-based rows",
+                "pile records with supported line-based rows and observed direct continuation rows",
                 "full/sub/sub2 placeholder markers",
                 "MTEF v2 fnSPACE records mapped to MathML mspace with source char-code evidence",
                 "MTEF v2/v3 fnLCGREEK/fnUCGREEK ASCII glyph positions mapped to Unicode Greek where known",
                 "font/size/ruler records as ignored formatting metadata",
                 "embellishment records parsed; dot/tilde/hat/overbar/arrow/arc mapped to mover and prime mapped to msup (others currently ignored)",
-                "legacy Equation Native post-END footers: observed short footer envelopes only (ignored)",
+                "legacy Equation Native post-END handling: observed short footer envelopes ignored; valid continuation records parsed",
             ],
             "unsupported_records": [
                 "unsupported matrix cell object records",
@@ -317,7 +319,7 @@ def _canonicalize_detected_equation3(step: ExecutionStep, context: ExecutionCont
         "supported_slice": equation3_fixture_admissibility_requirements()["current_productized_slice"],
         "claim_boundary": {
             "accepted": (
-                "MTEF v2/v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice can be converted to canonical MathML.",
+                "MTEF v2/v3 Equation Native payloads using the implemented script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, observed tmSUM_BOTH omitted-limit, standalone sum operator, character, and narrow legacy post-END handling slice can be converted to canonical MathML.",
             ),
             "not_accepted": (
                 "Universal Equation Editor 3.0 support.",
@@ -474,7 +476,7 @@ def _probe_dry_run_report(
         cwd=context.workspace_root,
         notes=(
             "Confirm Equation.3, ClassID, and EQNOLEFILEHDR/MTEF v2/v3 evidence.",
-            "The internal converter can now attempt the limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice.",
+            "The internal converter can now attempt the limited MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, observed tmSUM_BOTH omitted-limit, standalone sum operator, character, and narrow legacy post-END handling slice.",
             "This action does not claim universal Equation Editor 3.0 support or deliverable Word output.",
             f"Formula count from execution plan: {step.formula_count}.",
         ),
@@ -570,7 +572,7 @@ def build_equation3_dry_run_reports(
                     ),
                     cwd=context.workspace_root,
                     notes=(
-                        "Attempts canonical MathML conversion for the implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice.",
+                        "Attempts canonical MathML conversion for the implemented MTEF v2/v3 script, root, fraction, slash-fraction, bar, fence, limit, matrix, pile, BigOp, observed tmSUM_BOTH omitted-limit, standalone sum operator, character, and narrow legacy post-END handling slice.",
                         "Unsupported records are reported as canonical artifact blockers instead of guessed.",
                         "This is not a universal Equation Editor 3.0 converter claim.",
                     ),

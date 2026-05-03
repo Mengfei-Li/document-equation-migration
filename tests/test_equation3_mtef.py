@@ -49,6 +49,10 @@ def _subscript(slot: bytes) -> bytes:
     return b"\x03\x0f\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
 
 
+def _leading_subscript(slot: bytes) -> bytes:
+    return b"\x03\x2c\x01\x00" + b"\x0b" + b"\x01" + slot + b"\x00" + b"\x11" + b"\x00"
+
+
 def _fraction(numerator: bytes, denominator: bytes, *, variation: int = 0) -> bytes:
     return (
         b"\x03\x0e"
@@ -221,6 +225,22 @@ def test_supported_mtef3_script_slice_converts_to_mathml() -> None:
     assert result.template_selector_counts["15:1:tmSUB"] == 2
 
 
+def test_supported_mtef3_leading_subscript_template_converts_to_mmultiscripts() -> None:
+    expression = b"\x0a" + b"\x01" + _char(ord("N")) + _leading_subscript(_char(ord("k"))) + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    mmultiscripts = next(node for node in root.iter() if local_name(node.tag) == "mmultiscripts")
+
+    assert [local_name(node.tag) for node in root.iter()].count("mmultiscripts") == 1
+    assert [local_name(node.tag) for node in root.iter()].count("mprescripts") == 1
+    assert mmultiscripts.attrib["data-equation3-script-position"] == "leading"
+    assert [local_name(child.tag) for child in list(mmultiscripts)][1:4] == ["none", "none", "mprescripts"]
+    assert "".join(root.itertext()) == "Nk"
+    assert result.template_selector_counts["44:1:tmLSUB"] == 1
+
+
 def test_supported_mtef2_template_child_matrix_converts_inside_fence() -> None:
     result = convert_equation_native_stream_to_mathml(_supported_mtef2_equation_native_stream_with_template_child_matrix())
     root = ET.fromstring(result.mathml_text)
@@ -269,6 +289,8 @@ def test_supported_mtef3_allows_trailing_checksum_word_after_end_record() -> Non
         b"\xff\xff\xff",
         b"\xef\xef\xef",
         b"\x06\x00\x07",
+        b"\x04\x02\x01",
+        b"\x83\x0f\xa0",
         b"\x00" * 8 + b"\x09\x00\x00\x00",
     ],
 )
@@ -286,6 +308,16 @@ def test_supported_mtef3_rejects_unexpected_trailing_bytes_after_end_record() ->
 
     with pytest.raises(Equation3MtefError, match="Parser stopped with 3 trailing bytes"):
         convert_equation_native_stream_to_mathml(stream)
+
+
+def test_supported_mtef3_parses_valid_continuation_after_first_top_level_end() -> None:
+    stream = _supported_equation_native_stream() + b"\x11\x00\x0a" + _char(ord("*")) + _char(ord("1")) + b"\x00"
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "bk=ak*1"
+    assert result.parsed_bytes == result.mtef_payload_bytes
 
 
 def test_supported_mtef3_fraction_template_converts_to_mathml() -> None:
@@ -647,6 +679,20 @@ def test_supported_mtef3_pile_record_converts_to_mathml_table() -> None:
     assert result.record_counts["4"] == 1
 
 
+def test_supported_mtef3_pile_record_accepts_direct_continuation_row() -> None:
+    expression = b"\x01" + b"\x04\x01\x01" + _line(_char(ord("a"))) + _char(ord("b")) + b"\x00\x00\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    pile = next(node for node in root.iter() if local_name(node.tag) == "mtable")
+
+    assert pile.attrib["data-equation3-pile-rows"] == "2"
+    assert [local_name(node.tag) for node in pile.iter()].count("mtr") == 2
+    assert "".join(root.itertext()) == "ab"
+    assert result.record_counts["4"] == 1
+
+
 def test_supported_mtef3_template_child_pile_converts_inside_fence() -> None:
     brace_left_with_pile = (
         b"\x03\x02\x01\x00" + _pile([_char(ord("x")), _char(ord("y"))]) + b"\x00"
@@ -692,6 +738,53 @@ def test_supported_mtef3_sum_template_with_limits_converts_to_munderover() -> No
 
     assert [local_name(node.tag) for node in root.iter()].count("munderover") == 1
     assert "".join(root.itertext()) == "\u2211i=1na"
+    assert result.template_selector_counts["29:1:tmSUM_BOTH"] == 1
+
+
+def test_supported_mtef3_observed_sum_both_without_limit_slots_keeps_largeop_evidence() -> None:
+    expression = (
+        b"\x01"
+        + b"\x03\x1d\x01\x00"
+        + _line(_char(ord("a")))
+        + _char(0xEC07, typeface=22, options=0)
+        + b"\x00"
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    operator = next(node for node in root.iter() if local_name(node.tag) == "mo" and node.text == "\u2211")
+
+    assert operator.attrib["largeop"] == "true"
+    assert operator.attrib["movablelimits"] == "true"
+    assert operator.attrib["data-equation3-missing-limit-slots"] == "both"
+    assert operator.attrib["data-equation3-operator-source-codepoint"] == "U+EC07"
+    assert [local_name(node.tag) for node in root.iter()].count("munderover") == 0
+    assert "".join(root.itertext()) == "\u2211a"
+    assert result.template_selector_counts["29:1:tmSUM_BOTH"] == 1
+
+
+def test_supported_mtef3_observed_sum_both_can_split_embedded_expand_operator() -> None:
+    expression = (
+        b"\x01"
+        + b"\x03\x1d\x01\x00"
+        + _line(_char(ord("a")) + _char(0xEC08, typeface=22, options=0))
+        + b"\x00"
+        + b"\x00"
+        + b"\x00"
+    )
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+    operator = next(node for node in root.iter() if local_name(node.tag) == "mo" and node.text == "\u2211")
+
+    assert operator.attrib["data-equation3-operator-slot-shape"] == "embedded-in-main-line"
+    assert operator.attrib["data-equation3-operator-source-codepoint"] == "U+EC08"
+    assert operator.attrib["data-equation3-missing-limit-slots"] == "both"
+    assert "".join(root.itertext()) == "\u2211a"
     assert result.template_selector_counts["29:1:tmSUM_BOTH"] == 1
 
 

@@ -134,7 +134,7 @@ def test_equation3_dry_run_is_provider_binding_not_generic_fallback(tmp_path: Pa
     assert reports[1].supported is True
     assert reports[1].status == "ready"
     assert reports[1].runner == "internal-equation3-mtef-v2v3-limited"
-    assert "limit, matrix, pile, BigOp, standalone sum operator, character, and narrow legacy footer slice" in "\n".join(
+    assert "limit, matrix, pile, BigOp, observed tmSUM_BOTH omitted-limit" in "\n".join(
         reports[1].notes
     )
     assert "not a universal Equation Editor 3.0 converter claim" in "\n".join(reports[1].notes)
@@ -398,5 +398,7 @@ def test_equation3_fixture_admissibility_keeps_public_promotion_gated() -> None:
     assert "tmCOPROD_NO_LIMITS" in supported_records
     assert "tmINTOP_BOTH" in supported_records
     assert "tmSUMOP" in supported_records
+    assert "observed tmSUM_BOTH omitted-limit" in supported_records
     assert "pile records with supported line-based rows" in supported_records
+    assert "valid continuation records parsed" in supported_records
     assert "observed short footer envelopes" in supported_records
