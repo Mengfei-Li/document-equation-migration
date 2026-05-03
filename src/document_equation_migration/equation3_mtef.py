@@ -36,7 +36,11 @@ TEMPLATE_SELECTOR = {
     (5, 1): "tmDBAR_LEFT",
     (5, 2): "tmDBAR_RIGHT",
     (6, 0): "tmFLOOR",
+    (6, 1): "tmFLOOR_LEFT",
+    (6, 2): "tmFLOOR_RIGHT",
     (7, 0): "tmCEILING",
+    (7, 1): "tmCEILING_LEFT",
+    (7, 2): "tmCEILING_RIGHT",
     (13, 0): "tmROOT",
     (13, 1): "tmNTHROOT",
     (14, 0): "tmFRACT",
@@ -132,7 +136,11 @@ PARBOX_DELIMITERS = {
     "tmDBAR_LEFT": ("\u2016", ""),
     "tmDBAR_RIGHT": ("", "\u2016"),
     "tmFLOOR": ("\u230a", "\u230b"),
+    "tmFLOOR_LEFT": ("\u230a", ""),
+    "tmFLOOR_RIGHT": ("", "\u230b"),
     "tmCEILING": ("\u2308", "\u2309"),
+    "tmCEILING_LEFT": ("\u2308", ""),
+    "tmCEILING_RIGHT": ("", "\u2309"),
 }
 EMBELL_PRIME_TO_CHAR = {
     5: "\u2032",  # embPRIME

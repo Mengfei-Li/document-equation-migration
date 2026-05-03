@@ -468,6 +468,42 @@ def test_supported_mtef3_one_sided_bracket_template_preserves_side() -> None:
     assert result.template_selector_counts["3:2:tmBRACK_RIGHT"] == 1
 
 
+def test_supported_mtef3_one_sided_floor_template_preserves_side() -> None:
+    left = b"\x01" + _parbox(6, _char(ord("x")), variation=1) + b"\x00" + b"\x00"
+    right = b"\x01" + _parbox(6, _char(ord("x")), variation=2) + b"\x00" + b"\x00"
+
+    left_stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + left
+    right_stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + right
+
+    left_result = convert_equation_native_stream_to_mathml(left_stream)
+    left_root = ET.fromstring(left_result.mathml_text)
+    assert "".join(left_root.itertext()) == "\u230ax"
+    assert left_result.template_selector_counts["6:1:tmFLOOR_LEFT"] == 1
+
+    right_result = convert_equation_native_stream_to_mathml(right_stream)
+    right_root = ET.fromstring(right_result.mathml_text)
+    assert "".join(right_root.itertext()) == "x\u230b"
+    assert right_result.template_selector_counts["6:2:tmFLOOR_RIGHT"] == 1
+
+
+def test_supported_mtef3_one_sided_ceiling_template_preserves_side() -> None:
+    left = b"\x01" + _parbox(7, _char(ord("x")), variation=1) + b"\x00" + b"\x00"
+    right = b"\x01" + _parbox(7, _char(ord("x")), variation=2) + b"\x00" + b"\x00"
+
+    left_stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + left
+    right_stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + right
+
+    left_result = convert_equation_native_stream_to_mathml(left_stream)
+    left_root = ET.fromstring(left_result.mathml_text)
+    assert "".join(left_root.itertext()) == "\u2308x"
+    assert left_result.template_selector_counts["7:1:tmCEILING_LEFT"] == 1
+
+    right_result = convert_equation_native_stream_to_mathml(right_stream)
+    right_root = ET.fromstring(right_result.mathml_text)
+    assert "".join(right_root.itertext()) == "x\u2309"
+    assert right_result.template_selector_counts["7:2:tmCEILING_RIGHT"] == 1
+
+
 def test_supported_mtef3_parbox_accepts_explicit_fence_character_subobjects() -> None:
     expression = b"\x01" + _parbox(1, _char(ord("x")), include_fence_chars=True) + b"\x00" + b"\x00"
     stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
