@@ -127,6 +127,33 @@ def _over_arc(main: bytes) -> bytes:
     return b"\x03" + bytes([48, 0]) + b"\x00" + b"\x01" + main + b"\x00" + b"\x00"
 
 
+def _font_record(*, tface: int = 3, style: int = 0, name: bytes = b"Times") -> bytes:
+    return b"\x08" + bytes([tface & 0xFF, style & 0xFF]) + name + b"\x00"
+
+
+def _size_record(*, lsize: int = 0, dsize: int = 0) -> bytes:
+    return b"\x09" + bytes([lsize & 0xFF, (dsize + 128) & 0xFF])
+
+
+def _ruler_record(*, tab_stops: list[tuple[int, int]] | None = None) -> bytes:
+    tab_stops = tab_stops or []
+    encoded = [bytes([stop_type & 0xFF, offset & 0xFF, (offset >> 8) & 0xFF]) for stop_type, offset in tab_stops]
+    return b"\x07" + bytes([len(tab_stops) & 0xFF]) + b"".join(encoded)
+
+
+def _parbox_with_formatting_records(selector: int, main: bytes, *, variation: int = 0) -> bytes:
+    return (
+        b"\x03"
+        + bytes([selector, variation])
+        + b"\x00"
+        + _font_record()
+        + _size_record()
+        + _ruler_record()
+        + _line(main)
+        + b"\x00"
+    )
+
+
 def _parbox(selector: int, main: bytes, *, variation: int = 0, include_fence_chars: bool = False) -> bytes:
     fence_chars = b""
     if include_fence_chars:
@@ -445,6 +472,21 @@ def test_supported_mtef3_allows_nested_template_records_in_template_slot_lists()
     assert "".join(root.itertext()) == "(a)b"
     assert result.template_selector_counts["14:0:tmFRACT"] == 1
     assert result.template_selector_counts["1:0:tmPAREN"] == 1
+
+
+def test_supported_mtef3_allows_formatting_records_in_template_slot_lists() -> None:
+    template = _parbox_with_formatting_records(1, _char(ord("x")))
+    expression = b"\x01" + template + b"\x00" + b"\x00"
+    stream = bytes(EQNOLEFILEHDR_SIZE) + b"\x03\x01\x01\x03\x00" + expression
+
+    result = convert_equation_native_stream_to_mathml(stream)
+    root = ET.fromstring(result.mathml_text)
+
+    assert "".join(root.itertext()) == "(x)"
+    assert result.template_selector_counts["1:0:tmPAREN"] == 1
+    assert result.record_counts["7"] == 1
+    assert result.record_counts["8"] == 1
+    assert result.record_counts["9"] == 1
 
 
 def test_supported_mtef3_slash_fraction_template_converts_to_bevelled_mathml() -> None:

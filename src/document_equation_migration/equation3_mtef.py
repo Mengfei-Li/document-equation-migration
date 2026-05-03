@@ -679,6 +679,18 @@ class Mtef3Parser:
                 continue
             if options & 0x08:
                 self.skip_nudge()
+            if record_type == 6:
+                self.read_u8()
+                continue
+            if record_type == 7:
+                self.skip_ruler()
+                continue
+            if record_type == 8:
+                self.skip_font()
+                continue
+            if record_type == 9:
+                self.skip_size()
+                continue
             if record_type == 1:
                 if options & 0x04:
                     self.read_mtef16()
