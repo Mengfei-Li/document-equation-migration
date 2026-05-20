@@ -13,7 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from document_equation_migration.execution_plan.odf import build_odf_execution_step
 from document_equation_migration.executor.model import DryRunContext, ExecutionContext
-from document_equation_migration.executor.odf import build_odf_dry_run_reports, execute_odf_step
+from document_equation_migration.executor.odf import _canonicalize_mathml, build_odf_dry_run_reports, execute_odf_step
 
 
 FODT_WITH_INLINE_MATH = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -373,6 +373,63 @@ def test_execute_odf_native_preserves_mathml_properties_and_metadata(tmp_path: P
     assert 'encoding="application/x-tex"' in canonical_text
 
 
+def test_odf_canonicalization_counts_parse_and_root_failures(tmp_path: Path) -> None:
+    output_root = tmp_path / "out" / "odf-native"
+    extracted_dir = output_root / "extracted"
+    extracted_dir.mkdir(parents=True)
+    non_math_root_path = extracted_dir / "odf-native-0001-content.xml"
+    parse_error_path = extracted_dir / "odf-native-0002-content.xml"
+    non_math_root_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<math:mrow xmlns:math="http://www.w3.org/1998/Math/MathML">
+  <math:mi>x</math:mi>
+</math:mrow>
+""",
+        encoding="utf-8",
+    )
+    parse_error_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<math:math xmlns:math="http://www.w3.org/1998/Math/MathML">
+  <math:mi>x</math:mi>
+""",
+        encoding="utf-8",
+    )
+    (output_root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "formula_count": 2,
+                "formulas": [
+                    {"formula_id": "odf-native-0001", "artifact_path": str(non_math_root_path)},
+                    {"formula_id": "odf-native-0002", "artifact_path": str(parse_error_path)},
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    summary_path, canonical_paths = _canonicalize_mathml(output_root)
+
+    assert len(canonical_paths) == 2
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["expected_formula_count"] == 2
+    assert summary["canonical_mathml_count"] == 2
+    assert summary["unsupported_fragment_count"] == 2
+    assert summary["formula_count_parity"] == "mismatch"
+    unsupported_by_formula = {
+        item["formula_id"]: item for item in summary["unsupported_fragments"]
+    }
+    assert unsupported_by_formula["odf-native-0001"]["status"] == "not-mathml-root"
+    assert unsupported_by_formula["odf-native-0001"]["root_tag"].endswith("}mrow")
+    assert unsupported_by_formula["odf-native-0002"]["status"] == "xml-parse-error"
+    assert unsupported_by_formula["odf-native-0002"]["error"]
+    assert {
+        item["preservation_status"]
+        for item in summary["source_to_canonical_provenance"]
+    } == {"byte-identical-after-extraction"}
+
+
 def test_execute_odf_native_extracts_mathml_from_odt_subdocument(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.odt"
     _make_odt(input_path)
@@ -385,6 +442,34 @@ def test_execute_odf_native_extracts_mathml_from_odt_subdocument(tmp_path: Path)
     assert formula["doc_part_path"] == "Object 1/content.xml"
     assert formula["storage_kind"] == "odf-draw-object-subdocument"
     assert Path(formula["artifact_path"]).exists()
+
+
+def test_execute_odf_native_extracts_standalone_formula_root(tmp_path: Path) -> None:
+    input_path = tmp_path / "formula.mathml"
+    input_path.write_bytes(ODF_FORMULA_CONTENT_XML)
+
+    reports = execute_odf_step(_native_step(), _execution_context(tmp_path, input_path))
+
+    manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
+    canonical_summary = json.loads(Path(reports[1].output_paths[0]).read_text(encoding="utf-8"))
+    evidence = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
+
+    assert manifest["formula_count"] == 1
+    formula = manifest["formulas"][0]
+    assert formula["doc_part_path"] == "content.xml"
+    assert formula["storage_kind"] == "odf-formula-root"
+    assert Path(formula["artifact_path"]).exists()
+
+    assert canonical_summary["expected_formula_count"] == 1
+    assert canonical_summary["canonical_mathml_count"] == 1
+    assert canonical_summary["formula_count_parity"] == "passed"
+    assert len(canonical_summary["source_to_canonical_provenance"]) == 1
+
+    assert evidence["manifest"]["formula_count"] == 1
+    assert evidence["canonicalization"]["canonical_mathml_count"] == 1
+    assert evidence["canonicalization"]["formula_count_parity"] == "passed"
+    assert evidence["canonicalization"]["property_summary"] == canonical_summary["property_summary"]
+    assert evidence["source_to_canonical_provenance"] == canonical_summary["source_to_canonical_provenance"]
 
 
 def test_libreoffice_transformed_is_bridge_review_gate_not_native_extract(tmp_path: Path) -> None:

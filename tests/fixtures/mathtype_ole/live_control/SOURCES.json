@@ -1,0 +1,52 @@
+{
+  "artifact_type": "mathtype-live-control-fixture-sources",
+  "source_project": "transpect/mathtype-extension",
+  "source_project_url": "https://github.com/transpect/mathtype-extension",
+  "source_commit": "c1f788c7857802193220d370894ae52a2ce40d6c",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2015 Jure Triglav",
+  "notice": "See repository NOTICE.md, THIRD_PARTY_LICENSES/Jure-MathType-MIT-LICENSE.txt, and THIRD_PARTY_NOTICES/MathType-MTEF-Tooling-NOTICE.txt.",
+  "fixture_policy": "Minimal attributed MathType MTEF5 OLE live-control payload; no full source document, generated DOCX, generated PDF, generated image, or generated binary output is vendored.",
+  "safety": [
+    "The payload is stored as base64 text and decoded only into temporary test files.",
+    "Default public tests verify integrity, source detection, and temporary DOCX packaging only.",
+    "External conversion requires explicit opt-in and documented non-vendored converter prerequisites.",
+    "The fixture is not a production, lossless, pixel-identical, or general live-conversion proof."
+  ],
+  "claim_boundary": {
+    "public_fixture_claim": "integrity-detection-temporary-packaging-control",
+    "default_ci_runs_external_converter": false,
+    "requires_external_tools_for_conversion": true,
+    "canonical_mathml_claim": false,
+    "production_ready_claim": false,
+    "lossless_claim": false,
+    "pixel_identity_claim": false,
+    "universal_mathtype_support_claim": false,
+    "general_live_conversion_claim": false
+  },
+  "fixtures": [
+    {
+      "fixture_id": "transpect_mathtype5_equation1_live_control",
+      "stored_file": "word/embeddings/oleObject1.bin.b64",
+      "stored_encoding": "base64",
+      "source_path": "ruby/mathtype-0.0.7.5/spec/fixtures/input/mathtype5/equation1.bin",
+      "source_commit": "c1f788c7857802193220d370894ae52a2ce40d6c",
+      "decoded_payload_sha256": "9f53c650efc68c5c94952892a5432a7bbc6966558a5cc7de6f7c0581ead14d4e",
+      "decoded_payload_size_bytes": 3584,
+      "container_format": "OLE CFB",
+      "expected_source_family": "mathtype-ole",
+      "expected_detector_count": 1,
+      "expected_ole_streams": [
+        "\u0001CompObj",
+        "\u0001Ole",
+        "\u0003ObjInfo",
+        "Equation Native"
+      ],
+      "equation_native_stream_sha256": "0d6a8f914733f9f89aa64a6babba78016f90264deaabafb751a8cd1acf5853f8",
+      "equation_native_stream_size_bytes": 366,
+      "mtef_version": 5,
+      "application_key": "DSMT6",
+      "conversion_status": "external-tool-gated"
+    }
+  ]
+}

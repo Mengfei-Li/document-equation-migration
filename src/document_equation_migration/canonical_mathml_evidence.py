@@ -4,6 +4,89 @@ import hashlib
 from xml.etree import ElementTree as ET
 
 
+CANONICAL_EVIDENCE_SCHEMA_VERSION = "2026-05-05"
+
+CANONICAL_EVIDENCE_SOURCE_FAMILIES = (
+    "mathtype-ole",
+    "omml-native",
+    "odf-native",
+    "libreoffice-transformed",
+    "equation-editor-3-ole",
+    "axmath-ole",
+)
+
+CANONICALIZATION_SUMMARY_REQUIRED_FIELDS = (
+    "expected_formula_count",
+    "canonical_mathml_count",
+    "unsupported_fragment_count",
+    "formula_count_parity",
+    "canonical_mathml_dir",
+    "source_to_canonical_provenance",
+    "property_summary",
+    "unsupported_fragments",
+)
+
+CANONICAL_PROVENANCE_REQUIRED_FIELDS = (
+    "formula_id",
+    "canonical_artifact_path",
+    "canonical_sha256",
+    "preservation_status",
+    "property_signals",
+)
+
+CANONICAL_BLOCKER_RECORD_REQUIRED_FIELDS = (
+    "artifact_type",
+    "source_family",
+    "canonical_target",
+    "status",
+    "required_evidence",
+    "next_ready_condition",
+)
+
+CANONICAL_VALIDATION_EVIDENCE_REQUIRED_FIELDS = (
+    "artifact_type",
+    "source_family",
+    "status",
+)
+
+CANONICAL_FORMULA_COUNT_PARITY_VALUES = (
+    "passed",
+    "mismatch",
+    "unsupported-fragments",
+    "failed",
+)
+
+CANONICAL_CLAIM_BOUNDARY_FIELDS = (
+    "conversion_claim",
+    "limited_conversion_claim",
+    "general_converter_claim",
+    "deliverability_claim",
+    "word_visual_fill_back_claim",
+    "claim_boundary",
+)
+
+
+def canonical_evidence_schema() -> dict[str, object]:
+    return {
+        "version": CANONICAL_EVIDENCE_SCHEMA_VERSION,
+        "source_families": list(CANONICAL_EVIDENCE_SOURCE_FAMILIES),
+        "canonicalization_summary": {
+            "required_fields": list(CANONICALIZATION_SUMMARY_REQUIRED_FIELDS),
+            "formula_count_parity_values": list(CANONICAL_FORMULA_COUNT_PARITY_VALUES),
+        },
+        "source_to_canonical_provenance": {
+            "required_fields": list(CANONICAL_PROVENANCE_REQUIRED_FIELDS),
+        },
+        "blocker_record": {
+            "required_fields": list(CANONICAL_BLOCKER_RECORD_REQUIRED_FIELDS),
+        },
+        "validation_evidence": {
+            "required_fields": list(CANONICAL_VALIDATION_EVIDENCE_REQUIRED_FIELDS),
+        },
+        "claim_boundary_fields": list(CANONICAL_CLAIM_BOUNDARY_FIELDS),
+    }
+
+
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -74,4 +157,3 @@ def property_summary(items: list[dict[str, object]]) -> dict[str, object]:
             for key in property_keys
         },
     }
-

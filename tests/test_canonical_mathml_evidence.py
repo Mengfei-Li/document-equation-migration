@@ -1,6 +1,13 @@
 from xml.etree import ElementTree as ET
 
 from document_equation_migration.canonical_mathml_evidence import (
+    CANONICALIZATION_SUMMARY_REQUIRED_FIELDS,
+    CANONICAL_BLOCKER_RECORD_REQUIRED_FIELDS,
+    CANONICAL_EVIDENCE_SOURCE_FAMILIES,
+    CANONICAL_FORMULA_COUNT_PARITY_VALUES,
+    CANONICAL_PROVENANCE_REQUIRED_FIELDS,
+    CANONICAL_VALIDATION_EVIDENCE_REQUIRED_FIELDS,
+    canonical_evidence_schema,
     mathml_property_signals,
     property_summary,
     sha256_text,
@@ -64,3 +71,32 @@ def test_property_summary_aggregates_signals() -> None:
     assert summary["signal_counts"]["has_mfrac_bevelled"] == 1
     assert summary["signal_counts"]["has_mathvariant"] == 1
 
+
+def test_canonical_evidence_schema_exports_current_contract() -> None:
+    schema = canonical_evidence_schema()
+
+    assert schema["version"] == "2026-05-05"
+    assert schema["source_families"] == list(CANONICAL_EVIDENCE_SOURCE_FAMILIES)
+    assert set(schema["source_families"]) == {
+        "mathtype-ole",
+        "omml-native",
+        "odf-native",
+        "libreoffice-transformed",
+        "equation-editor-3-ole",
+        "axmath-ole",
+    }
+    assert schema["canonicalization_summary"]["required_fields"] == list(
+        CANONICALIZATION_SUMMARY_REQUIRED_FIELDS
+    )
+    assert schema["canonicalization_summary"]["formula_count_parity_values"] == list(
+        CANONICAL_FORMULA_COUNT_PARITY_VALUES
+    )
+    assert schema["source_to_canonical_provenance"]["required_fields"] == list(
+        CANONICAL_PROVENANCE_REQUIRED_FIELDS
+    )
+    assert schema["blocker_record"]["required_fields"] == list(
+        CANONICAL_BLOCKER_RECORD_REQUIRED_FIELDS
+    )
+    assert schema["validation_evidence"]["required_fields"] == list(
+        CANONICAL_VALIDATION_EVIDENCE_REQUIRED_FIELDS
+    )

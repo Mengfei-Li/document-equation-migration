@@ -142,6 +142,7 @@ def _read_canonicalization_summary(output_root: Path) -> dict[str, object]:
         "expected_formula_count": summary.get("expected_formula_count"),
         "canonical_mathml_count": summary.get("canonical_mathml_count"),
         "unsupported_fragment_count": summary.get("unsupported_fragment_count"),
+        "unsupported_fragments": summary.get("unsupported_fragments", []),
         "formula_count_parity": summary.get("formula_count_parity"),
         "strategy": summary.get("strategy"),
         "canonical_mathml_dir": summary.get("canonical_mathml_dir"),
@@ -393,6 +394,8 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
             },
             "canonical_artifact_gate": {
                 "formula_count_parity": canonicalization_summary.get("formula_count_parity"),
+                "unsupported_fragment_count": canonicalization_summary.get("unsupported_fragment_count"),
+                "unsupported_fragments": canonicalization_summary.get("unsupported_fragments"),
                 "property_summary": canonicalization_summary.get("property_summary"),
                 "source_to_canonical_provenance_count": canonicalization_summary.get(
                     "source_to_canonical_provenance_count"

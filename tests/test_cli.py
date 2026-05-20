@@ -20,6 +20,9 @@ DOCX_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 LIBREOFFICE_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "libreoffice_transformed"
 EQUATION3_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "equation_editor_3_ole"
+AXMATH_CONTRACT_FIXTURE = (
+    Path(__file__).resolve().parent / "fixtures" / "axmath" / "private-parser-contract-no-payload.json"
+)
 
 
 def make_docx(path: Path) -> None:
@@ -468,3 +471,30 @@ def test_validate_docx_passes_visual_gate_arguments(tmp_path: Path, monkeypatch)
     assert exit_code == 0
     assert captured["visual_max_changed_ratio_per_page"] == 0.03
     assert captured["visual_max_unmatched_pages"] == 1
+
+
+def test_validate_axmath_contract_writes_public_summary(tmp_path: Path) -> None:
+    report_path = tmp_path / "out" / "axmath-contract-report.json"
+
+    exit_code = main(
+        [
+            "validate-axmath-contract",
+            str(AXMATH_CONTRACT_FIXTURE),
+            "--output",
+            str(report_path),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["artifact_type"] == "axmath-no-payload-parser-contract-validation"
+    assert payload["status"] == "passed"
+    assert payload["summary"] == {
+        "source_family": "axmath-ole",
+        "schema_id": "axmath.private_parser_contract.no_payload.v1",
+        "clean_canonical_source_free": [355, 355],
+        "clean_exact_diagnostic": [353, 355],
+        "original_priority_v2": [327, 355],
+        "original_fail_closed": [28, 355],
+        "public_claims_false": True,
+    }

@@ -208,9 +208,41 @@ COMPLEX_DOCX_XML = """<?xml version="1.0" encoding="UTF-8"?>
 </w:document>
 """.encode("utf-8")
 
+DOCX_XML_WITH_UNSUPPORTED_OMML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <m:oMath>
+        <m:customUnsupported>
+          <m:r><m:t>x</m:t></m:r>
+        </m:customUnsupported>
+      </m:oMath>
+    </w:p>
+  </w:body>
+</w:document>
+"""
+
+
+OMML_STORY_PART_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<w:root xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:p>
+    <m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>
+  </w:p>
+</w:root>
+"""
+
+
 def make_docx(path: Path, document_xml: bytes = DOCX_XML) -> None:
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("word/document.xml", document_xml)
+
+
+def make_docx_with_parts(path: Path, parts: dict[str, bytes]) -> None:
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for part_path, xml in parts.items():
+            zf.writestr(part_path, xml)
 
 
 def make_omml_step(*, requires_manual_review: bool = False) -> ExecutionStep:
@@ -406,6 +438,40 @@ def test_execute_omml_step_writes_canonical_mathml_for_common_structures(tmp_pat
     assert '<math:mi mathvariant="bold-italic">v</math:mi>' in canonical_text
 
 
+def test_execute_omml_step_counts_and_surfaces_unsupported_fragments(tmp_path: Path) -> None:
+    input_path = tmp_path / "unsupported.docx"
+    make_docx(input_path, DOCX_XML_WITH_UNSUPPORTED_OMML)
+
+    reports = execute_omml_step(make_omml_step(), make_context(tmp_path, input_path))
+
+    canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
+    assert canonical_summary["expected_formula_count"] == 1
+    assert canonical_summary["canonical_mathml_count"] == 1
+    assert canonical_summary["unsupported_fragment_count"] == 1
+    assert canonical_summary["formula_count_parity"] == "mismatch"
+    assert canonical_summary["unsupported_fragments"] == [
+        {
+            "formula_id": "omml-0001",
+            "source_omml_path": str(Path(reports[1].output_paths[1])),
+            "status": "unsupported-omml-structure",
+        }
+    ]
+
+    canonical_mathml = Path(reports[2].output_paths[1]).read_text(encoding="utf-8")
+    assert 'data-omml-unsupported="customUnsupported"' in canonical_mathml
+
+    validation_evidence = json.loads(Path(reports[4].output_paths[2]).read_text(encoding="utf-8"))
+    evidence_summary = validation_evidence["artifacts"]["canonicalization_summary"]
+    assert evidence_summary["unsupported_fragment_count"] == 1
+    assert evidence_summary["unsupported_fragments"] == canonical_summary["unsupported_fragments"]
+    assert evidence_summary["formula_count_parity"] == "mismatch"
+    assert validation_evidence["canonical_artifact_gate"]["unsupported_fragment_count"] == 1
+    assert validation_evidence["canonical_artifact_gate"]["unsupported_fragments"] == canonical_summary[
+        "unsupported_fragments"
+    ]
+    assert validation_evidence["canonical_artifact_gate"]["formula_count_parity"] == "mismatch"
+
+
 def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -> None:
     input_path = tmp_path / "sample.docx"
     make_docx(input_path)
@@ -430,3 +496,43 @@ def test_execute_omml_step_marks_manual_review_validation_gate(tmp_path: Path) -
     assert validation_evidence["gate_status"] == "manual-review-required"
     assert validation_evidence["artifacts"]["validation_plan"]["status"] == "manual-review-required"
     assert validation_evidence["artifacts"]["validation_plan"]["review_mode"] == "required"
+
+
+def test_execute_omml_step_extracts_story_part_formulas(tmp_path: Path) -> None:
+    input_path = tmp_path / "story-parts.docx"
+    expected_part_paths = [
+        "word/comments.xml",
+        "word/endnotes.xml",
+        "word/footer1.xml",
+        "word/footnotes.xml",
+        "word/header1.xml",
+    ]
+    make_docx_with_parts(
+        input_path,
+        {part_path: OMML_STORY_PART_XML for part_path in expected_part_paths},
+    )
+
+    reports = execute_omml_step(make_omml_step(), make_context(tmp_path, input_path))
+
+    manifest = json.loads(Path(reports[0].output_paths[0]).read_text(encoding="utf-8"))
+    canonical_summary = json.loads(Path(reports[2].output_paths[0]).read_text(encoding="utf-8"))
+    validation_evidence = json.loads(Path(reports[4].output_paths[2]).read_text(encoding="utf-8"))
+
+    assert manifest["formula_count"] == 5
+    assert [item["part_path"] for item in manifest["items"]] == expected_part_paths
+    assert [item["part_index"] for item in manifest["items"]] == [1, 1, 1, 1, 1]
+    assert {item["kind"] for item in manifest["items"]} == {"oMath"}
+
+    assert canonical_summary["expected_formula_count"] == 5
+    assert canonical_summary["canonical_mathml_count"] == 5
+    assert canonical_summary["formula_count_parity"] == "passed"
+    assert len(canonical_summary["source_to_canonical_provenance"]) == 5
+    assert [
+        item["source_part_path"]
+        for item in canonical_summary["source_to_canonical_provenance"]
+    ] == expected_part_paths
+
+    assert validation_evidence["artifacts"]["manifest"]["formula_count"] == 5
+    assert validation_evidence["artifacts"]["canonicalization_summary"]["canonical_mathml_count"] == 5
+    assert validation_evidence["canonical_artifact_gate"]["source_to_canonical_provenance_count"] == 5
+    assert len(validation_evidence["source_to_canonical_provenance"]) == 5

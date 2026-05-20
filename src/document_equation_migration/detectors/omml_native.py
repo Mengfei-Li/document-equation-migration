@@ -1,10 +1,13 @@
 import hashlib
 import zipfile
 from pathlib import Path
+from typing import Any, Mapping
 from xml.etree import ElementTree as ET
 
 
 DETECTOR_VERSION = "0.1.0"
+SHARED_DETECTOR_FAMILY = "shared-detector"
+DETECTION_STRATEGY = "native-omml-detection"
 
 NS = {
     "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
@@ -19,6 +22,104 @@ STORY_TYPE_BY_PART = {
     "word/endnotes.xml": "endnote",
     "word/comments.xml": "comment",
 }
+
+PROPERTY_SIGNAL_KEYS = (
+    "has_semantics",
+    "has_annotation",
+    "has_mfrac_linethickness",
+    "has_mfrac_bevelled",
+    "has_mfenced_separators",
+    "has_movablelimits",
+    "has_mathvariant",
+    "has_accent",
+    "has_accentunder",
+)
+
+
+def empty_property_summary() -> dict[str, object]:
+    return {
+        "mathml_attribute_count": 0,
+        "root_display_values": [],
+        "signal_counts": {key: 0 for key in PROPERTY_SIGNAL_KEYS},
+    }
+
+
+def optional_int(value: object, default: int | None) -> int | None:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    return default
+
+
+def count_from_sequence(value: object) -> int | None:
+    if isinstance(value, list):
+        return len(value)
+    return None
+
+
+def build_shared_detector_summary(
+    formulas: list[dict[str, Any]],
+    canonicalization_summary: Mapping[str, Any] | None = None,
+) -> dict[str, object]:
+    canonical_summary = dict(canonicalization_summary or {})
+    items_count = count_from_sequence(canonical_summary.get("items"))
+    if items_count is None:
+        items_count = len(formulas)
+
+    expected_formula_count = optional_int(
+        canonical_summary.get("expected_formula_count"),
+        items_count,
+    )
+    canonical_mathml_count = optional_int(
+        canonical_summary.get("canonical_mathml_count"),
+        0,
+    )
+    unsupported_fragment_count = optional_int(
+        canonical_summary.get("unsupported_fragment_count"),
+        0,
+    )
+    provenance_count = optional_int(
+        canonical_summary.get("source_to_canonical_provenance_count"),
+        count_from_sequence(canonical_summary.get("source_to_canonical_provenance")),
+    )
+    if provenance_count is None:
+        provenance_count = 0
+
+    formula_count_parity = canonical_summary.get("formula_count_parity")
+    if not isinstance(formula_count_parity, str) or not formula_count_parity:
+        formula_count_parity = "unverified"
+        if canonicalization_summary is not None:
+            formula_count_parity = (
+                "passed"
+                if expected_formula_count == canonical_mathml_count
+                and unsupported_fragment_count == 0
+                else "mismatch"
+            )
+
+    property_summary = canonical_summary.get("property_summary")
+    if not isinstance(property_summary, dict):
+        property_summary = empty_property_summary()
+
+    return {
+        "source_family": "omml-native",
+        "detector_family": SHARED_DETECTOR_FAMILY,
+        "strategy": str(canonical_summary.get("strategy") or DETECTION_STRATEGY),
+        "items_count": items_count,
+        "expected_formula_count": expected_formula_count,
+        "canonical_mathml_count": canonical_mathml_count,
+        "unsupported_fragment_count": unsupported_fragment_count,
+        "formula_count_parity": formula_count_parity,
+        "source_to_canonical_provenance_count": provenance_count,
+        "property_summary": property_summary,
+        "claim_boundary": {
+            "conversion_claim": False,
+            "universal_omml_support": False,
+            "public_fixture_eligibility": False,
+            "docx_pdf_deliverability": False,
+            "visual_parity": False,
+        },
+    }
 
 
 def local_name(tag: str) -> str:
@@ -278,7 +379,10 @@ def scan_story_part(
     return results, sequence
 
 
-def detect_omml_native(docx_path: str | Path) -> dict:
+def detect_omml_native(
+    docx_path: str | Path,
+    canonicalization_summary: Mapping[str, Any] | None = None,
+) -> dict:
     path = Path(docx_path).resolve()
     formulas: list[dict] = []
 
@@ -307,6 +411,11 @@ def detect_omml_native(docx_path: str | Path) -> dict:
             "container_format": path.suffix.lstrip(".").lower(),
             "detector_version": DETECTOR_VERSION,
         },
+        "formula_count": len(formulas),
         "source_counts": source_counts,
+        "shared_detector_summary": build_shared_detector_summary(
+            formulas,
+            canonicalization_summary,
+        ),
         "formulas": formulas,
     }

@@ -10,6 +10,8 @@ from .model import ActionExecutionReport, DryRunActionReport, DryRunContext, Exe
 
 AXMATH_SOURCE_FAMILY = "axmath-ole"
 AXMATH_OUTPUT_DIR = "axmath-export-assisted"
+AXMATH_STRUCTURAL_METADATA_ACTION_ID = "classify-axmath-structural-metadata"
+AXMATH_CONTROLLED_ACCEPTANCE_ACTION_ID = "record-axmath-controlled-acceptance-contract"
 _INPUT_DOCX_PLACEHOLDER = "<input-docx-from-plan>"
 
 
@@ -156,58 +158,141 @@ def _review_status(step: ExecutionStep) -> str:
     return "review-gated" if step.requires_manual_review else "validation-gated"
 
 
+def _action_metadata(action: ExecutionAction) -> dict[str, object]:
+    metadata = getattr(action, "metadata", {})
+    return dict(metadata) if isinstance(metadata, dict) else {}
+
+
+def _structural_metadata_for_step(step: ExecutionStep) -> dict[str, object] | None:
+    for action in step.actions:
+        if action.action_id == AXMATH_STRUCTURAL_METADATA_ACTION_ID:
+            return _action_metadata(action)
+    return None
+
+
+def _controlled_acceptance_for_step(step: ExecutionStep) -> dict[str, object] | None:
+    for action in step.actions:
+        if action.action_id == AXMATH_CONTROLLED_ACCEPTANCE_ACTION_ID:
+            return _action_metadata(action)
+    return None
+
+
+def _structural_metadata_notes(action: ExecutionAction) -> tuple[str, ...]:
+    metadata = _action_metadata(action)
+    status_counts = metadata.get("structural_status_counts", {})
+    structural_status_counts = status_counts if isinstance(status_counts, dict) else {}
+    blocker_ids = metadata.get("blocker_ids", [])
+    claims = metadata.get("claim_boundaries", {})
+    claim_boundaries = claims if isinstance(claims, dict) else {}
+    return (
+        f"axmath_metadata_parse_status={metadata.get('status', 'metadata-only')}",
+        f"axmath_metadata_record_count={metadata.get('record_count', 0)}",
+        f"axmath_metadata_structural_status_counts={structural_status_counts}",
+        f"axmath_metadata_blocker_ids={blocker_ids}",
+        f"conversion_claim={claim_boundaries.get('conversion_claim', False)}",
+        f"native_parser_claim={claim_boundaries.get('native_parser_claim', False)}",
+        f"export_success_claim={claim_boundaries.get('export_success_claim', False)}",
+        f"public_fixture_eligibility={claim_boundaries.get('public_fixture_eligibility', False)}",
+        "This is bounded metadata-only classification and does not emit canonical MathML.",
+    )
+
+
+def _controlled_acceptance_notes(action: ExecutionAction) -> tuple[str, ...]:
+    metadata = _action_metadata(action)
+    result_class_counts = metadata.get("result_class_counts", {})
+    diagnostic_counts = metadata.get("diagnostic_counts", {})
+    claims = metadata.get("claim_boundaries", {})
+    claim_boundaries = claims if isinstance(claims, dict) else {}
+    return (
+        f"axmath_controlled_acceptance_scope={metadata.get('evidence_scope', 'contract-only')}",
+        f"axmath_controlled_acceptance_decision={metadata.get('decision_enum', '')}",
+        f"axmath_controlled_sample_count={metadata.get('controlled_sample_count', 0)}",
+        f"axmath_controlled_accepted_count={metadata.get('accepted_count', 0)}",
+        f"axmath_controlled_remaining_fail_closed_count={metadata.get('remaining_fail_closed_count', 0)}",
+        f"axmath_controlled_result_class_counts={result_class_counts}",
+        f"axmath_controlled_diagnostic_counts={diagnostic_counts}",
+        f"native_parser_claim={claim_boundaries.get('native_parser_claim', False)}",
+        f"conversion_claim={claim_boundaries.get('conversion_claim', False)}",
+        f"public_native_parser_binding={claim_boundaries.get('public_native_parser_binding', False)}",
+        f"universal_axmath_support={claim_boundaries.get('universal_axmath_support', False)}",
+        "This is a public-safe contract record only; no private artifacts or canonical bodies are emitted.",
+    )
+
+
 def _write_export_gate_record(
     step: ExecutionStep,
     context: ExecutionContext,
     output_root: Path,
 ) -> Path:
     record_path = output_root / "blocker-record.json"
-    next_ready_condition = (
-        "Re-run with --allow-external-tools after preparing an approved AxMath/vendor export workflow "
-        "that can emit reviewed MathML or LaTeX artifacts."
-        if not context.allow_external_tools
-        else "Use a verified AxMath/vendor export workflow to emit reviewed MathML or LaTeX artifacts, "
-        "then complete the import and manual review gate before delivery."
-    )
-    _write_json(
-        record_path,
-        {
-            "artifact_type": "axmath-export-assisted-blocker-record",
-            "provider": step.provider,
-            "source_family": step.source_family,
-            "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
-            "route_kind": step.route_kind,
-            "action_id": "export-assisted-conversion",
-            "status": "blocked-external-tool" if not context.allow_external_tools else "validation-gated",
-            "gate_state": "blocked" if not context.allow_external_tools else "validation-gated",
-            "blocking": True,
-            "runner": "external-axmath-export",
-            "input_path": context.input_path,
-            "execution_plan_path": context.execution_plan_path,
-            "output_root": str(output_root),
-            "external_export_dependency": {
-                "required": True,
-                "kind": "vendor-export-workflow",
-                "description": (
-                    "An approved AxMath/vendor export workflow must emit reviewed canonical MathML artifacts, "
-                    "or LaTeX artifacts with a separately validated LaTeX-to-MathML conversion step."
-                ),
-                "allow_external_tools": context.allow_external_tools,
-                "verified_cli_binding": False,
-            },
-            "export_admissibility": axmath_export_admissibility_requirements(),
-            "required_evidence": [
-                "reviewed canonical MathML artifact(s), or LaTeX plus validated MathML conversion",
-                "manual semantic review of exported formulas",
-                "render parity check against the source document",
-            ],
-            "review_requirements": [
-                "compare the exported formulas against the source AxMath OLE content",
-                "confirm the export can be consumed by the downstream import/review gate",
-            ],
-            "next_ready_condition": next_ready_condition,
+    if not context.allow_external_tools:
+        next_ready_condition = (
+            "Re-run with --allow-external-tools after preparing an approved AxMath/vendor export workflow "
+            "that can emit reviewed MathML or LaTeX artifacts."
+        )
+    else:
+        next_ready_condition = (
+            "Use a verified AxMath/vendor export workflow to emit reviewed MathML or LaTeX artifacts, "
+            "then complete the import and manual review gate before delivery."
+        )
+    blocker_record: dict[str, object] = {
+        "artifact_type": "axmath-export-assisted-blocker-record",
+        "provider": step.provider,
+        "source_family": step.source_family,
+        "canonical_target": canonical_mathml_contract_for_source_family(step.source_family).to_dict(),
+        "conversion_claim": False,
+        "native_parser_claim": False,
+        "export_success_claim": False,
+        "public_fixture_eligibility": False,
+        "route_kind": step.route_kind,
+        "action_id": "export-assisted-conversion",
+        "status": "blocked-external-tool" if not context.allow_external_tools else "validation-gated",
+        "gate_state": "blocked" if not context.allow_external_tools else "validation-gated",
+        "blocking": True,
+        "runner": "external-axmath-export",
+        "input_path": context.input_path,
+        "execution_plan_path": context.execution_plan_path,
+        "output_root": str(output_root),
+        "external_export_dependency": {
+            "required": True,
+            "kind": "vendor-export-workflow",
+            "description": (
+                "An approved AxMath/vendor export workflow must emit reviewed canonical MathML artifacts, "
+                "or LaTeX artifacts with a separately validated LaTeX-to-MathML conversion step."
+            ),
+            "allow_external_tools": context.allow_external_tools,
+            "verified_cli_binding": False,
         },
-    )
+        "export_admissibility": axmath_export_admissibility_requirements(),
+        "required_evidence": [
+            "reviewed canonical MathML artifact(s), or LaTeX plus validated MathML conversion",
+            "manual semantic review of exported formulas",
+            "render parity check against the source document",
+        ],
+        "review_requirements": [
+            "compare the exported formulas against the source AxMath OLE content",
+            "confirm the export can be consumed by the downstream import/review gate",
+        ],
+        "next_ready_condition": next_ready_condition,
+    }
+    structural_metadata = _structural_metadata_for_step(step)
+    if structural_metadata is not None:
+        blocker_record["axmath_structural_metadata"] = structural_metadata
+        blocker_record["axmath_structural_metadata_blocker_ids"] = structural_metadata.get(
+            "blocker_ids", []
+        )
+        blocker_record["axmath_structural_metadata_boundary"] = (
+            "metadata-only; no native static parser, conversion, export success, semantic review, "
+            "visual equivalence, or public fixture eligibility claim"
+        )
+    controlled_acceptance = _controlled_acceptance_for_step(step)
+    if controlled_acceptance is not None:
+        blocker_record["axmath_controlled_acceptance"] = controlled_acceptance
+        blocker_record["axmath_controlled_acceptance_boundary"] = (
+            "private controlled acceptance metadata only; no public native parser binding, "
+            "conversion claim, broad support claim, or public fixture eligibility"
+        )
+    _write_json(record_path, blocker_record)
     return record_path
 
 
@@ -222,7 +307,7 @@ def _classify_dry_run_report(action: ExecutionAction, context: DryRunContext) ->
         cwd=str(_workspace_root(context)),
         notes=(
             "AxMath intake uses detector/classifier evidence and an export-assisted route.",
-            "No native AxMath static parser is assumed or previewed by this provider.",
+            "This execution provider does not parse private AxMath payloads; local BYO Contents inspection is a separate structural metadata-only CLI path.",
         ),
     )
 
@@ -243,11 +328,40 @@ def _export_dry_run_report(
         cwd=str(_workspace_root(context)),
         notes=(
             "AxMath conversion is export-assisted: an approved AxMath/vendor export workflow must create MathML or LaTeX artifacts.",
-            "No command is registered because this provider does not have a verified native static parser or CLI binding.",
+            "No conversion command is registered because this provider does not have a verified semantic native parser or export CLI binding.",
             "Next stage requires reviewed export artifacts that satisfy the blocker-record export admissibility checklist.",
             f"Input document for the export gate: {input_docx}",
             f"Expected reviewed export artifact root: {output_root}",
         ),
+    )
+
+
+def _structural_metadata_dry_run_report(action: ExecutionAction, context: DryRunContext) -> DryRunActionReport:
+    return DryRunActionReport(
+        action_id=action.action_id,
+        description=action.description,
+        blocking=action.blocking,
+        supported=True,
+        status="metadata-only",
+        runner="internal-axmath-structural-metadata",
+        cwd=str(_workspace_root(context)),
+        notes=_structural_metadata_notes(action),
+    )
+
+
+def _controlled_acceptance_dry_run_report(
+    action: ExecutionAction,
+    context: DryRunContext,
+) -> DryRunActionReport:
+    return DryRunActionReport(
+        action_id=action.action_id,
+        description=action.description,
+        blocking=action.blocking,
+        supported=True,
+        status="contract-only",
+        runner="internal-axmath-controlled-acceptance",
+        cwd=str(_workspace_root(context)),
+        notes=_controlled_acceptance_notes(action),
     )
 
 
@@ -313,6 +427,12 @@ def build_axmath_dry_run_reports(
     for action in step.actions:
         if action.action_id == "classify-axmath-object":
             reports.append(_classify_dry_run_report(action, context))
+            continue
+        if action.action_id == AXMATH_STRUCTURAL_METADATA_ACTION_ID:
+            reports.append(_structural_metadata_dry_run_report(action, context))
+            continue
+        if action.action_id == AXMATH_CONTROLLED_ACCEPTANCE_ACTION_ID:
+            reports.append(_controlled_acceptance_dry_run_report(action, context))
             continue
         if action.action_id == "export-assisted-conversion":
             reports.append(_export_dry_run_report(action, context))
@@ -384,8 +504,34 @@ def execute_axmath_step(
                     context=context,
                     notes=(
                         "Proceeding from execution-plan classifier evidence only.",
-                        "No native AxMath static parse was attempted.",
+                        "No private AxMath payload parse was attempted by this execution provider.",
                     ),
+                )
+            )
+            continue
+
+        if action.action_id == AXMATH_STRUCTURAL_METADATA_ACTION_ID:
+            reports.append(
+                _execution_report(
+                    action,
+                    status="completed",
+                    runner="internal-axmath-structural-metadata",
+                    context=context,
+                    blocking=False,
+                    notes=_structural_metadata_notes(action),
+                )
+            )
+            continue
+
+        if action.action_id == AXMATH_CONTROLLED_ACCEPTANCE_ACTION_ID:
+            reports.append(
+                _execution_report(
+                    action,
+                    status="completed",
+                    runner="internal-axmath-controlled-acceptance",
+                    context=context,
+                    blocking=False,
+                    notes=_controlled_acceptance_notes(action),
                 )
             )
             continue
@@ -420,7 +566,7 @@ def execute_axmath_step(
                     notes=(
                         "AxMath execution requires an external vendor/export workflow and is blocked unless explicitly allowed.",
                         "Use --allow-external-tools only after the AxMath export environment and review workflow are prepared.",
-                        "This provider does not claim native static parsing support.",
+                        "This provider does not claim semantic native parsing support or conversion support.",
                         "The blocker record lists export admissibility requirements for canonical MathML promotion.",
                     ),
                 )

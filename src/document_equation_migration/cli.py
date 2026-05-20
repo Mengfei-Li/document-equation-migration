@@ -6,6 +6,11 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .axmath_native_parser import (
+    build_byo_axmath_contents_report,
+    build_byo_axmath_local_input_report,
+)
+from .axmath_private_parser_contract import load_axmath_private_parser_contract
 from .container_scan import scan_container
 from .detectors.base import DetectorContext
 from .docx_validation import validate_docx_artifact
@@ -113,6 +118,30 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Maximum unmatched pages accepted by the shared visual gate.",
     )
+
+    axmath_contract_parser = subparsers.add_parser(
+        "validate-axmath-contract",
+        help="Validate an AxMath no-payload parser contract JSON and emit a summary.",
+    )
+    axmath_contract_parser.add_argument("contract", help="Path to AxMath no-payload parser contract JSON.")
+    axmath_contract_parser.add_argument("-o", "--output", help="Write validation report JSON to a file.")
+    axmath_contract_parser.add_argument("--indent", type=int, default=2, help="JSON indent level.")
+
+    axmath_contents_parser = subparsers.add_parser(
+        "inspect-axmath-contents",
+        help="Inspect a user-supplied AxMath Contents byte stream with the public-safe BYO scanner.",
+    )
+    axmath_contents_parser.add_argument("contents", help="Path to a local AxMath Contents byte stream.")
+    axmath_contents_parser.add_argument("-o", "--output", help="Write inspection report JSON to a file.")
+    axmath_contents_parser.add_argument("--indent", type=int, default=2, help="JSON indent level.")
+
+    axmath_local_parser = subparsers.add_parser(
+        "inspect-axmath-local",
+        help="Inspect a user-supplied local DOCX, OLE storage, or Contents byte stream.",
+    )
+    axmath_local_parser.add_argument("input", help="Path to a local DOCX, OLE storage, or Contents byte stream.")
+    axmath_local_parser.add_argument("-o", "--output", help="Write inspection report JSON to a file.")
+    axmath_local_parser.add_argument("--indent", type=int, default=2, help="JSON indent level.")
     return parser
 
 
@@ -271,6 +300,64 @@ def run_validate_docx(
     return 0
 
 
+def run_validate_axmath_contract(
+    contract_path: str,
+    output_path: str | None,
+    indent: int,
+) -> int:
+    contract = load_axmath_private_parser_contract(contract_path)
+    payload = json.dumps(
+        {
+            "artifact_type": "axmath-no-payload-parser-contract-validation",
+            "status": "passed",
+            "contract_path": contract_path,
+            "summary": contract.summary(),
+        },
+        ensure_ascii=False,
+        indent=indent,
+    )
+    if output_path:
+        _write_text(output_path, payload)
+    else:
+        sys.stdout.write(payload)
+        sys.stdout.write("\n")
+    return 0
+
+
+def run_inspect_axmath_contents(
+    contents_path: str,
+    output_path: str | None,
+    indent: int,
+) -> int:
+    path = Path(contents_path)
+    report = build_byo_axmath_contents_report(
+        path.read_bytes(),
+        input_name=path.name,
+    )
+    payload = json.dumps(report, ensure_ascii=False, indent=indent)
+    if output_path:
+        _write_text(output_path, payload)
+    else:
+        sys.stdout.write(payload)
+        sys.stdout.write("\n")
+    return 0
+
+
+def run_inspect_axmath_local(
+    input_path: str,
+    output_path: str | None,
+    indent: int,
+) -> int:
+    report = build_byo_axmath_local_input_report(input_path)
+    payload = json.dumps(report, ensure_ascii=False, indent=indent)
+    if output_path:
+        _write_text(output_path, payload)
+    else:
+        sys.stdout.write(payload)
+        sys.stdout.write("\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "scan":
@@ -307,6 +394,24 @@ def main(argv: list[str] | None = None) -> int:
             args.visual_compare,
             args.visual_max_changed_ratio_per_page,
             args.visual_max_unmatched_pages,
+        )
+    if args.command == "validate-axmath-contract":
+        return run_validate_axmath_contract(
+            args.contract,
+            args.output,
+            args.indent,
+        )
+    if args.command == "inspect-axmath-contents":
+        return run_inspect_axmath_contents(
+            args.contents,
+            args.output,
+            args.indent,
+        )
+    if args.command == "inspect-axmath-local":
+        return run_inspect_axmath_local(
+            args.input,
+            args.output,
+            args.indent,
         )
     raise ValueError(f"Unsupported command: {args.command}")
 

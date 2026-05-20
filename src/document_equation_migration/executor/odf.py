@@ -198,12 +198,15 @@ def _canonicalize_mathml(output_root: Path) -> tuple[Path, tuple[Path, ...]]:
         shutil.copyfile(source_path, target_path)
         canonical_paths.append(target_path)
         formula = formula_by_artifact.get(str(source_path), {})
+        formula_id = formula.get("formula_id", source_path.stem)
         source_text = source_path.read_text(encoding="utf-8")
         canonical_text = target_path.read_text(encoding="utf-8")
         property_signals: dict[str, object] = {}
         status = "accepted"
+        root_tag = ""
         try:
             root = ET.fromstring(source_text)
+            root_tag = root.tag
             property_signals = _mathml_property_signals(root)
             if root.tag != _qname(MATHML_NAMESPACE, "math"):
                 status = "not-mathml-root"
@@ -211,6 +214,7 @@ def _canonicalize_mathml(output_root: Path) -> tuple[Path, tuple[Path, ...]]:
             status = "xml-parse-error"
             unsupported_items.append(
                 {
+                    "formula_id": formula_id,
                     "source_mathml_path": str(source_path),
                     "status": status,
                     "error": str(exc),
@@ -219,13 +223,15 @@ def _canonicalize_mathml(output_root: Path) -> tuple[Path, tuple[Path, ...]]:
         if status != "accepted" and status != "xml-parse-error":
             unsupported_items.append(
                 {
+                    "formula_id": formula_id,
                     "source_mathml_path": str(source_path),
                     "status": status,
+                    "root_tag": root_tag,
                 }
             )
         provenance_items.append(
             {
-                "formula_id": formula.get("formula_id", source_path.stem),
+                "formula_id": formula_id,
                 "source_mathml_path": str(source_path),
                 "canonical_artifact_path": str(target_path),
                 "source_sha256": _sha256_text(source_text),
@@ -292,6 +298,7 @@ def _write_validation_evidence(step: ExecutionStep, context: ExecutionContext, o
                 "present": canonical_summary_path.exists(),
                 "canonical_mathml_count": canonical_summary.get("canonical_mathml_count"),
                 "unsupported_fragment_count": canonical_summary.get("unsupported_fragment_count"),
+                "unsupported_fragments": canonical_summary.get("unsupported_fragments", []),
                 "formula_count_parity": canonical_summary.get("formula_count_parity"),
                 "property_summary": canonical_summary.get("property_summary"),
                 "canonical_mathml_dir": str(canonical_dir),

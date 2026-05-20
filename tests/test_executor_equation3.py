@@ -237,6 +237,7 @@ def test_equation3_execute_writes_limited_canonical_mathml_for_supported_payload
     assert summary["limited_conversion_claim"] is True
     assert summary["general_converter_claim"] is False
     assert summary["deliverability_claim"] is False
+    assert summary["word_visual_fill_back_claim"] is False
     assert summary["canonical_mathml_count"] == 1
     assert summary["formula_count_parity"] == "passed"
     assert summary["source_to_canonical_provenance"][0]["preservation_status"] == (
@@ -250,6 +251,20 @@ def test_equation3_execute_writes_limited_canonical_mathml_for_supported_payload
     root = ET.parse(canonical_path).getroot()
     assert local_name(root.tag) == "math"
     assert "".join(root.itertext()) == "bk=ak"
+    validation_evidence = json.loads((output_root / "validation-evidence.json").read_text(encoding="utf-8"))
+    assert validation_evidence["artifact_type"] == "equation3-validation-evidence"
+    assert validation_evidence["source_family"] == "equation-editor-3-ole"
+    assert validation_evidence["status"] == "passed-limited"
+    assert validation_evidence["canonical_target"]
+    canonical_artifact_gate = validation_evidence["canonical_artifact_gate"]
+    assert Path(canonical_artifact_gate["canonicalization_summary_path"]).name == "canonicalization-summary.json"
+    assert Path(canonical_artifact_gate["canonical_mathml_dir"]).name == "canonical-mathml"
+    assert canonical_artifact_gate["expected_formula_count"] == 1
+    assert canonical_artifact_gate["canonical_mathml_count"] == 1
+    assert canonical_artifact_gate["unsupported_fragment_count"] == 0
+    assert canonical_artifact_gate["formula_count_parity"] == "passed"
+    assert canonical_artifact_gate["property_summary"] == summary["property_summary"]
+    assert validation_evidence["source_to_canonical_provenance"] == summary["source_to_canonical_provenance"]
 
 
 def test_equation3_execute_does_not_write_invalid_mathml_artifact(monkeypatch, tmp_path: Path) -> None:

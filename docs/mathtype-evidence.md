@@ -35,6 +35,20 @@ This release does **not** claim lossless conversion, pixel-identical layout, or 
 | Local live-conversion control | A separate local research-control run proved that the external toolchain can complete end-to-end live conversion on the same payload class. | The live chain works locally, while public release claims remain manual-review gated. |
 | Legacy MTEF3 fixture normalization | The pipeline adds a default display-mode marker for MTEF3 intermediate XML that omits one. Fixture validation covers 11 MathType 3 payloads and a mixed 12-object DOCX export. | Older MathType 3-style fixture payloads no longer fail only because the display-mode marker is absent. This is fixture/toolchain evidence, not a guarantee for every legacy document. |
 
+## Nonexternal Public Evidence Boundary
+
+The public `live_control` fixture now has a structured source record at `tests/fixtures/mathtype_ole/live_control/SOURCES.json`. That record pins the upstream project, commit, source path, decoded payload SHA-256, OLE stream hash, MIT license attribution, NOTICE references, and the fixture's claim boundary.
+
+The default public test suite uses this fixture without launching the external MathType converter. In the nonexternal path, the fixture proves only:
+
+- exact source payload integrity
+- OLE CFB readability
+- presence of the `Equation Native` stream
+- detector classification as one `mathtype-ole` source
+- temporary DOCX packaging from public text fixture files
+
+That nonexternal evidence does not prove canonical MathML production, OMML replacement, Word export, production readiness, lossless conversion, pixel-identical layout, universal MathType support, or general live-conversion coverage. Full live conversion remains an opt-in external-tool check and must be interpreted through the same manual-review boundary as the rest of the MathType route.
+
 ## What Users Can Claim Today
 
 With the current evidence, users can reasonably say:

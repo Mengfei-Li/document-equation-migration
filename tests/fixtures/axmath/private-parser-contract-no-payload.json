@@ -1,0 +1,84 @@
+{
+  "schema_id": "axmath.private_parser_contract.no_payload.v1",
+  "source_family": "axmath-ole",
+  "provenance": {
+    "derived_from_private_run_ids": [
+      "run_20260519_0038_private_canonical_acceptance_gate",
+      "run_20260519_0039_original_payload_fail_closed_gate",
+      "run_20260519_0040_private_parser_contract_package"
+    ],
+    "metadata_only": true,
+    "public_safe": true
+  },
+  "contract_scope": {
+    "scope_id": "private_controlled_corpus_no_payload_contract",
+    "private_controlled_corpus_contract": true,
+    "runtime_word_axmath_dependency": false,
+    "public_conversion_support": false,
+    "public_fixture_eligibility": false,
+    "broad_native_parser_support": false,
+    "universal_axmath_support": false
+  },
+  "private_material_boundaries": {
+    "binary_material_included": false,
+    "canonical_markup_included": false,
+    "document_artifacts_included": false,
+    "source_text_included": false,
+    "derived_digests_included": false,
+    "display_media_included": false
+  },
+  "surfaces": {
+    "clean_canonical_surface": {
+      "row_count": 355,
+      "canonical_source_free_count": 355,
+      "exact_replay_diagnostic_count": 353,
+      "canonical_rule": "unwrap_single_child_mrow_v1",
+      "recovered_sample_ids": [
+        "CP2-0067",
+        "CP2-0351"
+      ],
+      "substitution_counts": {
+        "original_v2_rows": 334,
+        "recaptured_rows": 21
+      }
+    },
+    "original_lossy_surface": {
+      "row_count": 355,
+      "priority_v2_parsed_count": 327,
+      "priority_v2_unsupported_count": 28,
+      "guarded_original_rows": 28,
+      "source_free_promotable_guarded_rows": 0,
+      "recaptured_exact_rows_source_free_count": 21,
+      "unsupported_reason_counts": {
+        "input_side_conversion_collapse": 18,
+        "same_stream_oracle_policy_conflict": 8,
+        "script_grouping_policy_conflict": 2
+      }
+    }
+  },
+  "claim_freeze": {
+    "private_clean_canonical_completion": true,
+    "private_exact_source_completion": false,
+    "original_controlled_corpus_source_free_completion": false,
+    "source_free_native_parser_completion": false,
+    "broad_native_parser_completion": false,
+    "exact_source_completion": false,
+    "conversion_claim": false,
+    "native_parser_claim": false,
+    "export_success_claim": false,
+    "public_fixture_eligibility": false,
+    "public_conversion_support": false,
+    "universal_axmath_support": false
+  },
+  "forbidden_evidence_sources": [
+    "raw Contents bytes",
+    "private DOCX bytes",
+    "OLE storage bytes",
+    "formula body text",
+    "decoded formula semantics",
+    "MathML, LaTeX, OMML, SVG, or markup formula bodies",
+    "preview, render, screenshot, image, or OCR content",
+    "commercial-tool output bytes",
+    "payload-derived hex, base64, or digest material"
+  ]
+}

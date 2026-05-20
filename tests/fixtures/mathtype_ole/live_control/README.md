@@ -11,10 +11,14 @@ It is not a real user document and does not include generated DOCX, PDF, WMF, or
 - Original path: `ruby/mathtype-0.0.7.5/spec/fixtures/input/mathtype5/equation1.bin`
 - SHA-256: `9f53c650efc68c5c94952892a5432a7bbc6966558a5cc7de6f7c0581ead14d4e`
 
-The nested `mathtype` gem fixture is used under its MIT license. See `NOTICE.md` for attribution.
+The structured source record is `SOURCES.json`. It pins the source project, commit, source path, decoded payload hash, OLE stream hash, license, NOTICE references, and claim boundary.
+
+The nested `mathtype` gem fixture is used under its MIT license. See the repository `NOTICE.md`, `THIRD_PARTY_LICENSES/Jure-MathType-MIT-LICENSE.txt`, and `THIRD_PARTY_NOTICES/MathType-MTEF-Tooling-NOTICE.txt` for attribution.
 
 ## Scope
 
 This fixture provides a real binary MTEF OLE payload suitable for exercising live-conversion tooling when the documented external converter prerequisites are available.
 
 The repository's default CI tests only verify fixture integrity, source detection, and temporary DOCX packaging. They do not run the external MathType converter by default.
+
+This fixture is not a real user document, production output proof, lossless conversion proof, pixel-identical layout proof, universal MathType support proof, or general live-conversion proof. It is a minimal public control for provenance, integrity, detection, temporary packaging, and optional opt-in external-tool testing.
